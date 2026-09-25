@@ -5,7 +5,7 @@
   "requires": {
     "db": {
       "kind": "sqlite",
-      "credentials": { "database": "db/lims.db" }
+      "credentials": { "url": "db/lims.db" }
     }
   }
 }
