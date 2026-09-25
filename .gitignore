@@ -1,0 +1,11 @@
+node_modules/
+db/lims.db
+db/*.db-shm
+db/*.db-wal
+gen/
+.env
+*.pptx
+*.pdf
+~$*
+Screenshots/
+.claude/

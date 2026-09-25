@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Manage Requisitions – LIMS</title>
+  <link rel="stylesheet" href="/shared/lims.css"/>
+  <script src="/shared/lims.js"></script>
+  <style>
+    .lims-table { width: 100%; table-layout: fixed; }
+    .lims-table thead th, .lims-table tbody td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Column widths - distribute across full screen */
+    .lims-table col.c-cb   { width: 36px; }
+    .lims-table col.c-dot  { width: 20px; }
+    .lims-table col.c-rid  { width: 100px; }
+    .lims-table col.c-inum { width: 80px; }
+    .lims-table col.c-snum { width: 130px; }
+    .lims-table col.c-sdsc { width: 140px; }
+    .lims-table col.c-mnum { width: 110px; }
+    .lims-table col.c-mdsc { width: 120px; }
+    .lims-table col.c-oqty { width: 72px; }
+    .lims-table col.c-pqty { width: 68px; }
+    .lims-table col.c-uom  { width: 50px; }
+    .lims-table col.c-ist  { width: 110px; }
+    .lims-table col.c-rfor { width: 100px; }
+    .lims-table col.c-need { width: 90px; }
+    .lims-table col.c-dsub { width: 90px; }
+    .lims-table col.c-plt  { width: 55px; }
+    .lims-table col.c-lab  { width: 130px; }
+    .lims-table col.c-cat  { width: auto; }
+  </style>
+</head>
+<body>
+
+<nav class="lims-nav">
+  <span class="breadcrumb"><span class="nav-icon">📋</span> LIMS – Manage Requisitions</span>
+  <a class="back-link" href="/launchpad.html">🏠 Back to Launchpad</a>
+</nav>
+
+<div class="lims-page">
+
+  <!-- ── Filter Requests ────────────────────────────────── -->
+  <div class="lims-filter">
+    <h2>Filter Requests</h2>
+
+    <!-- Row 1: 4 fields -->
+    <div class="form-grid">
+      <div class="field">
+        <label>Requisition ID</label>
+        <input id="f-reqid" placeholder=""/>
+      </div>
+      <div class="field">
+        <label>Specification No.</label>
+        <input id="f-spec" placeholder=""/>
+      </div>
+      <div class="field">
+        <label>Material No.</label>
+        <input id="f-mat" placeholder=""/>
+      </div>
+      <div class="field">
+        <label>Requested For</label>
+        <input id="f-reqfor" placeholder=""/>
+      </div>
+    </div>
+
+    <!-- Row 2: 4 fields -->
+    <div class="form-grid">
+      <div class="field">
+        <label>Date Submitted</label>
+        <input id="f-submitted" type="date"/>
+      </div>
+      <div class="field">
+        <label>Needed By</label>
+        <input id="f-needed" type="date"/>
+      </div>
+      <div class="field">
+        <label>Plant</label>
+        <input id="f-plant" placeholder=""/>
+      </div>
+      <div class="field">
+        <label>Laboratory</label>
+        <input id="f-lab" placeholder=""/>
+      </div>
+    </div>
+
+    <!-- Row 3: 2 fields + buttons -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;align-items:end">
+      <div class="field">
+        <label>Category</label>
+        <input id="f-category" placeholder=""/>
+      </div>
+      <div class="field">
+        <label>Item Status</label>
+        <select id="f-status">
+          <option value="">All Statuses</option>
+          <option value="Open">Open</option>
+          <option value="Completed">Completed</option>
+          <option value="In Progress">In Progress</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
+        <button class="btn btn-secondary" onclick="clearFilters()">✕ Clear Filters</button>
+        <button class="btn btn-primary" onclick="applyFilter()">GO</button>
+      </div>
+      <div></div>
+    </div>
+  </div>
+
+  <!-- ── Toolbar ────────────────────────────────────────── -->
+  <div class="table-toolbar">
+    <span id="row-count" style="font-size:12px;color:#666;margin-right:auto"></span>
+    <a href="/create-requisition/webapp/index.html" class="btn btn-secondary">Create Requisition</a>
+    <button class="btn btn-secondary" id="btn-edit-req" onclick="openEditModal()" disabled>Edit Requisition</button>
+    <button class="btn btn-secondary" id="btn-dispense" onclick="openDispense()" disabled>Dispense</button>
+    <button class="btn-icon export-btn" title="Export to Excel" data-table="main-table" data-filename="Manage_Requisitions.csv"></button>
+  </div>
+
+  <!-- ── Split layout ─────────────────────────────────── -->
+  <div class="lims-split">
+    <div class="split-list">
+      <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;overflow:hidden">
+        <table class="lims-table" id="main-table">
+          <colgroup>
+            <col class="c-cb"/><col class="c-dot"/>
+            <col class="c-rid"/><col class="c-inum"/>
+            <col class="c-snum"/><col class="c-sdsc"/>
+            <col class="c-mnum"/><col class="c-mdsc"/>
+            <col class="c-oqty"/><col class="c-pqty"/>
+            <col class="c-uom"/><col class="c-ist"/>
+            <col class="c-rfor"/><col class="c-need"/>
+            <col class="c-dsub"/><col class="c-plt"/>
+            <col class="c-lab"/><col class="c-cat"/>
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="th-cb"><input type="checkbox" id="cb-all" onchange="toggleAll(this)"/></th>
+              <th></th>
+              <th class="sortable" onclick="sortBy('reqID')">Requisition ID ↕</th>
+              <th>Item Number</th>
+              <th>Specification Number</th>
+              <th>Specification Description</th>
+              <th>Material Number</th>
+              <th>Material Description</th>
+              <th class="text-right">Order Qty</th>
+              <th class="text-right">Open Qty</th>
+              <th>UoM</th>
+              <th>Item Status</th>
+              <th>Requested For</th>
+              <th>Needed By</th>
+              <th>Date Submitted</th>
+              <th>Plant</th>
+              <th>Laboratory</th>
+              <th>Category</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Detail panel ──────────────────────────────── -->
+    <div class="split-detail" id="detail-panel">
+      <div class="detail-card">
+        <div class="detail-card-head">
+          <h3 id="dp-title">–</h3>
+          <button class="detail-close" onclick="closeDetail()">✕</button>
+        </div>
+        <div class="detail-card-body">
+
+          <div class="detail-section">
+            <h4>Overview</h4>
+            <div class="detail-row"><span class="detail-lbl">Requisition Status</span><span class="detail-val" id="dp-req-status">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Item Status</span><span class="detail-val" id="dp-item-status">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Open Qty</span><span class="detail-val" id="dp-open-qty">–</span></div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Stock Details</h4>
+            <div class="detail-row"><span class="detail-lbl">Stock In Plant</span><span class="detail-val" id="dp-stock-plant">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Stock In Lab</span><span class="detail-val" id="dp-stock-lab">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Total Qty Requisitioned</span><span class="detail-val" id="dp-total-req">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Available Stock In Plant</span><span class="detail-val" id="dp-avail-stock">–</span></div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-head">
+              <h4>Dispensing Details</h4>
+              <button class="btn btn-secondary" style="font-size:11px;height:26px;padding:3px 10px" onclick="printLabel()">🖨 Print Label</button>
+            </div>
+            <div class="table-wrapper">
+              <table class="mini-table">
+                <thead><tr>
+                  <th>Parent Container</th>
+                  <th>Child Container</th>
+                  <th>Mfg. Lot #</th>
+                  <th>Date</th>
+                  <th>Qty</th>
+                  <th>By</th>
+                  <th>UoM</th>
+                </tr></thead>
+                <tbody id="dp-dispensing"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div><!-- /lims-split -->
+
+</div><!-- /lims-page -->
+
+<!-- ── Edit Requisition Modal ────────────────────────────── -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal" style="width:820px;overflow-x:hidden">
+    <div class="modal-head">
+      <h3>Edit Requisition Item</h3>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="em-item-id"/>
+
+      <!-- Read-only identifiers -->
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="field">
+          <label>Requisition ID</label>
+          <input id="em-req-id" readonly class="auto-fill"/>
+        </div>
+        <div class="field">
+          <label>Item Number</label>
+          <input id="em-item-num" readonly class="auto-fill"/>
+        </div>
+        <div class="field">
+          <label>Specification Number</label>
+          <input id="em-spec-num" readonly class="auto-fill"/>
+        </div>
+        <div class="field">
+          <label>Material Number</label>
+          <input id="em-mat-num" readonly class="auto-fill"/>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-bottom:0">
+        <div class="field" style="grid-column:span 2">
+          <label>Specification Description</label>
+          <input id="em-spec-desc" readonly class="auto-fill"/>
+        </div>
+        <div class="field" style="grid-column:span 2">
+          <label>Requisition Name</label>
+          <input id="em-req-name" placeholder="Requisition name"/>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top:10px;margin-bottom:0">
+        <div class="field">
+          <label>Requested For</label>
+          <input id="em-req-for" placeholder="User ID"/>
+        </div>
+        <div class="field">
+          <label>Needed By</label>
+          <input id="em-needed" type="date"/>
+        </div>
+        <div class="field">
+          <label>Plant</label>
+          <select id="em-plant">
+            <option value="NAIS">NAIS</option>
+            <option value="NAIT">NAIT</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Laboratory</label>
+          <select id="em-lab">
+            <option value="BODY DEVELOPMENT">Body Development</option>
+            <option value="HP LAB">HP Lab</option>
+            <option value="HP PILOT LAB">HP Pilot Lab</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top:10px;margin-bottom:0">
+        <div class="field">
+          <label>Category</label>
+          <input id="em-category" placeholder="Category"/>
+        </div>
+        <div class="field">
+          <label>Order Qty</label>
+          <input id="em-qty" type="number" min="0.001" step="0.001"/>
+        </div>
+        <div class="field">
+          <label>UoM</label>
+          <select id="em-uom">
+            <option>KG</option><option>G</option><option>L</option><option>ML</option><option>EA</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Dispense Modal (simplified) ───────────────────────── -->
+<div class="modal-overlay" id="dispense-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-head">
+      <h3>Dispense</h3>
+      <button class="modal-close" onclick="closeDispenseModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:#555;margin:0 0 14px">Select a container and enter the quantity to dispense for the selected requisition item.</p>
+      <div class="field" style="margin-bottom:12px">
+        <label>Selected Item</label>
+        <input id="d-item-label" readonly class="auto-fill"/>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Container ID</label>
+        <input id="d-container" placeholder="e.g. CONT-P-001" list="d-cont-list"/>
+        <datalist id="d-cont-list"></datalist>
+      </div>
+      <div class="form-grid">
+        <div class="field" style="grid-column:span 2">
+          <label>Quantity to Dispense</label>
+          <input id="d-qty" type="number" min="0.001" step="0.001"/>
+        </div>
+        <div class="field" style="grid-column:span 2">
+          <label>UoM</label>
+          <input readonly value="KG" class="auto-fill"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeDispenseModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="executeDispense()">Dispense</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ODATA = '/odata/v4/lims';
+let allRows      = [];
+let displayed    = [];
+let sortKey      = 'reqID';
+let sortDir      = 1;
+let selectedIdx  = null;
+let dispensedMap = {};   // reqItemID → total qty dispensed
+
+// ── Load data ──────────────────────────────────────────────
+async function load() {
+  try {
+    const [r, dr] = await Promise.all([
+      fetch(
+        `${ODATA}/RequisitionItems` +
+        `?$expand=requisition($select=RequisitionID,RequisitionName,Status,plant_PlantCode,lab_LabCode,` +
+                              `NeededBy,RequestedFor,CreatedBy,CreatedOn,Category),` +
+        `spec($select=SpecNumber,Description,IsZRawMat,IsZFrag),` +
+        `material($select=MaterialNumber,Description)` +
+        `&$orderby=requisition_RequisitionID,ItemNumber`
+      ),
+      fetch(`${ODATA}/DispensingRecords?$select=reqItem_ID,QtyIssued`)
+    ]);
+    const d  = await r.json();
+    const dd = await dr.json();
+
+    // Build map: reqItemID → total dispensed qty
+    dispensedMap = {};
+    for (const rec of (dd.value || [])) {
+      dispensedMap[rec.reqItem_ID] = (dispensedMap[rec.reqItem_ID] || 0) + (rec.QtyIssued || 0);
+    }
+
+    allRows = d.value || [];
+    render(allRows);
+
+    makeResizable('main-table');
+
+    // Also load containers for dispense datalist
+    const cr = await fetch(`${ODATA}/Containers?$select=ContainerID,Status&$filter=Status eq 'Available'`);
+    const cd = await cr.json();
+    const dl = document.getElementById('d-cont-list');
+    (cd.value || []).forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.ContainerID;
+      dl.appendChild(o);
+    });
+  } catch(e) {
+    document.getElementById('tbody').innerHTML =
+      `<tr><td colspan="18" class="table-empty">Failed to load data. Is the server running?</td></tr>`;
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function itemStatus(item) {
+  // Completed if criticality=5 (green), otherwise Open
+  if (item.Criticality >= 5) return 'Completed';
+  return 'Open';
+}
+
+function openQty(item) {
+  // Open Qty = Order Qty minus total already dispensed
+  if (item.Criticality >= 5) return 0;
+  const dispensed = dispensedMap[item.ID] || 0;
+  return Math.max(0, (item.Quantity || 0) - dispensed);
+}
+
+function itemStatusBadge(status) {
+  if (status === 'Completed')
+    return `<span class="badge badge-green" style="gap:3px">✓ Completed</span>`;
+  return `<span class="badge" style="background:#eef5fc;color:#0a6ed1;border:1px solid #b0ccee;gap:3px">○ Open</span>`;
+}
+
+function dotColor(item) {
+  if (item.Criticality >= 3) return 'dot-green';
+  if (item.Criticality === 2) return 'dot-yellow';
+  return 'dot-red';
+}
+
+// ── Render ─────────────────────────────────────────────────
+function render(rows) {
+  displayed = rows;
+  checkedSet.clear();
+  updateEditBtn();
+  document.getElementById('row-count').textContent = `${rows.length} item(s)`;
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="18" class="table-empty">No requisition items found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((item, i) => {
+    const req  = item.requisition || {};
+    const spec = item.spec        || {};
+    const mat  = item.material    || {};
+    const iStatus = itemStatus(item);
+    const oQty    = openQty(item);
+    return `<tr onclick="selectRow(${i})" id="tr-${i}">
+      <td class="cb-cell" onclick="event.stopPropagation()"><input type="checkbox" class="row-cb" onchange="onCheckChange(this,${i})"/></td>
+      <td style="padding:8px 4px 8px 8px">
+        <span class="status-dot ${dotColor(item)}"></span>
+      </td>
+      <td class="fw600 nowrap">${req.RequisitionID || ''}</td>
+      <td>${String(item.ItemNumber || 0).padStart(6, '0')}</td>
+      <td>${spec.SpecNumber || ''}</td>
+      <td>${spec.Description || ''}</td>
+      <td>${mat.MaterialNumber || ''}</td>
+      <td>${mat.Description || ''}</td>
+      <td class="text-right">${(item.Quantity || 0).toLocaleString()}</td>
+      <td class="text-right">${oQty.toLocaleString()}</td>
+      <td>${item.UoM || 'KG'}</td>
+      <td>${itemStatusBadge(iStatus)}</td>
+      <td>${req.RequestedFor || ''}</td>
+      <td class="nowrap">${req.NeededBy || ''}</td>
+      <td class="nowrap">${req.CreatedOn || ''}</td>
+      <td>${req.plant_PlantCode || ''}</td>
+      <td>${req.lab_LabCode || ''}</td>
+      <td>${req.Category || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Row selection ──────────────────────────────────────────
+async function selectRow(i) {
+  if (selectedIdx !== null)
+    document.getElementById(`tr-${selectedIdx}`)?.classList.remove('selected');
+  selectedIdx = i;
+  document.getElementById(`tr-${i}`)?.classList.add('selected');
+
+  const item = displayed[i];
+  const req  = item?.requisition || {};
+  const spec = item?.spec || {};
+
+  const iSt  = itemStatus(item);
+  const oQty = openQty(item);
+
+  document.getElementById('dp-title').textContent =
+    `${req.RequisitionID || ''} / ${String(item.ItemNumber || 0).padStart(6, '0')}`;
+
+  // Overview
+  const reqStatusBadge = req.Status === 'Approved'
+    ? `<span class="badge badge-green">✓ Approved</span>`
+    : req.Status === 'Submitted'
+    ? `<span class="badge badge-blue">→ Submitted</span>`
+    : `<span class="badge badge-grey">○ Draft</span>`;
+  document.getElementById('dp-req-status').innerHTML  = reqStatusBadge;
+  document.getElementById('dp-item-status').innerHTML = iSt === 'Completed'
+    ? `<span class="badge badge-green">✓ Completed</span>`
+    : `<span class="badge" style="background:#eef5fc;color:#0a6ed1;border:1px solid #b0ccee">○ Open</span>`;
+  document.getElementById('dp-open-qty').textContent  = oQty.toLocaleString();
+
+  // Stock Details — fetch Inventory for this spec+plant
+  document.getElementById('dp-stock-plant').textContent  = '…';
+  document.getElementById('dp-stock-lab').textContent    = '…';
+  document.getElementById('dp-total-req').textContent    = (item.Quantity || 0).toLocaleString();
+  document.getElementById('dp-avail-stock').textContent  = (item.AvailableQty || 0).toLocaleString();
+
+  try {
+    const specNum = spec.SpecNumber || item.spec_SpecNumber || '';
+    const plant   = req.plant_PlantCode || '';
+    if (specNum) {
+      const [invR, contR] = await Promise.all([
+        fetch(`${ODATA}/Inventory?$filter=spec_SpecNumber eq '${specNum}'`),
+        fetch(`${ODATA}/Containers?$filter=spec_SpecNumber eq '${specNum}' and Status eq 'Available'&$select=ContainerID,RemainingQuantity,lab_LabCode`)
+      ]);
+      const invD  = await invR.json();
+      const contD = await contR.json();
+      const inv   = invD.value?.[0];
+      if (inv) {
+        document.getElementById('dp-stock-plant').textContent = (inv.TotalQuantity || 0).toLocaleString();
+      } else {
+        document.getElementById('dp-stock-plant').textContent = '–';
+      }
+      const labCode = req.lab_LabCode || '';
+      const labQty  = (contD.value || [])
+        .filter(c => !labCode || c.lab_LabCode === labCode)
+        .reduce((s, c) => s + (c.RemainingQuantity || 0), 0);
+      document.getElementById('dp-stock-lab').textContent = labQty.toLocaleString();
+    }
+  } catch(e) {
+    document.getElementById('dp-stock-plant').textContent = '–';
+    document.getElementById('dp-stock-lab').textContent   = '–';
+  }
+
+  // Dispensing Details
+  document.getElementById('dp-dispensing').innerHTML = '<tr><td colspan="7" class="table-empty">Loading…</td></tr>';
+  try {
+    const dr = await fetch(`${ODATA}/DispensingRecords?$filter=reqItem_ID eq ${item.ID}&$expand=container($select=ContainerID,MfgLotNo)`);
+    const dd = await dr.json();
+    const disps = dd.value || [];
+    document.getElementById('dp-dispensing').innerHTML = disps.length
+      ? disps.map(d => `<tr>
+          <td>${d.container?.ContainerID || d.container_ContainerID || ''}</td>
+          <td>${d.ChildContainerID || ''}</td>
+          <td>${d.container?.MfgLotNo || ''}</td>
+          <td>${d.DispensingDate || ''}</td>
+          <td>${d.QtyIssued || 0}</td>
+          <td>${d.DispensedBy || ''}</td>
+          <td>${d.UoM || 'KG'}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="7" class="table-empty">No dispensing records</td></tr>';
+  } catch(e) {
+    document.getElementById('dp-dispensing').innerHTML = '<tr><td colspan="7" class="table-empty">–</td></tr>';
+  }
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  if (selectedIdx !== null) {
+    document.getElementById(`tr-${selectedIdx}`)?.classList.remove('selected');
+    selectedIdx = null;
+  }
+}
+
+function printLabel() {
+  if (selectedIdx === null) return;
+  const item = displayed[selectedIdx];
+  const req  = item?.requisition || {};
+  showToast(`Label for ${req.RequisitionID} sent to printer`, 'success');
+}
+
+// ── Filter ─────────────────────────────────────────────────
+function applyFilter() {
+  const fRid  = document.getElementById('f-reqid').value.trim().toUpperCase();
+  const fSpec = document.getElementById('f-spec').value.trim().toUpperCase();
+  const fMat  = document.getElementById('f-mat').value.trim().toUpperCase();
+  const fFor  = document.getElementById('f-reqfor').value.trim().toUpperCase();
+  const fSub  = document.getElementById('f-submitted').value;
+  const fNeed = document.getElementById('f-needed').value;
+  const fPlt  = document.getElementById('f-plant').value.trim().toUpperCase();
+  const fLab  = document.getElementById('f-lab').value.trim().toUpperCase();
+  const fCat  = document.getElementById('f-category').value.trim().toUpperCase();
+  const fSt   = document.getElementById('f-status').value;
+
+  const filtered = allRows.filter(item => {
+    const req  = item.requisition || {};
+    const spec = item.spec        || {};
+    const mat  = item.material    || {};
+    const iSt  = itemStatus(item);
+    return (!fRid  || (req.RequisitionID || '').toUpperCase().includes(fRid))
+        && (!fSpec || (spec.SpecNumber   || '').toUpperCase().includes(fSpec))
+        && (!fMat  || (mat.MaterialNumber|| '').toUpperCase().includes(fMat))
+        && (!fFor  || (req.RequestedFor  || '').toUpperCase().includes(fFor))
+        && (!fSub  || (req.CreatedOn     || '') === fSub)
+        && (!fNeed || (req.NeededBy      || '') === fNeed)
+        && (!fPlt  || (req.plant_PlantCode||'').toUpperCase().includes(fPlt))
+        && (!fLab  || (req.lab_LabCode   || '').toUpperCase().includes(fLab))
+        && (!fCat  || (req.Category      || '').toUpperCase().includes(fCat))
+        && (!fSt   || iSt === fSt);
+  });
+  render(filtered);
+  selectedIdx = null;
+}
+
+function clearFilters() {
+  ['f-reqid','f-spec','f-mat','f-reqfor','f-submitted','f-needed','f-plant','f-lab','f-category']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-status').value = '';
+  render(allRows);
+  selectedIdx = null;
+}
+
+// ── Sort ───────────────────────────────────────────────────
+function sortBy(key) {
+  if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = 1; }
+  const sorted = [...displayed].sort((a, b) => {
+    const va = a.requisition?.RequisitionID || '';
+    const vb = b.requisition?.RequisitionID || '';
+    return va.localeCompare(vb) * sortDir;
+  });
+  render(sorted);
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('.row-cb').forEach((c, i) => {
+    c.checked = cb.checked;
+    if (cb.checked) checkedSet.add(i); else checkedSet.delete(i);
+  });
+  updateEditBtn();
+}
+
+// ── Checkbox selection & Edit button state ──────────────────
+const checkedSet = new Set();
+
+function onCheckChange(cb, idx) {
+  if (cb.checked) checkedSet.add(idx); else checkedSet.delete(idx);
+  updateEditBtn();
+}
+
+function updateEditBtn() {
+  const arr = [...checkedSet];
+  const singleOpen = arr.length === 1 && itemStatus(displayed[arr[0]]) === 'Open';
+  document.getElementById('btn-edit-req').disabled   = !singleOpen;
+  document.getElementById('btn-dispense').disabled   = arr.length !== 1;
+}
+
+// ── Edit Requisition modal ──────────────────────────────────
+function openEditModal() {
+  const arr = [...checkedSet];
+  if (arr.length !== 1) return;
+  const item = displayed[arr[0]];
+  const req  = item.requisition || {};
+  const spec = item.spec || {};
+  const mat  = item.material || {};
+
+  // Read-only info
+  document.getElementById('em-req-id').value    = req.RequisitionID || '';
+  document.getElementById('em-item-num').value  = String(item.ItemNumber || 0).padStart(6, '0');
+  document.getElementById('em-spec-num').value  = spec.SpecNumber || '';
+  document.getElementById('em-spec-desc').value = spec.Description || '';
+  document.getElementById('em-mat-num').value   = mat.MaterialNumber || '';
+
+  // Editable fields
+  document.getElementById('em-req-name').value  = req.RequisitionName || '';
+  document.getElementById('em-req-for').value   = req.RequestedFor || '';
+  document.getElementById('em-needed').value    = req.NeededBy || '';
+  document.getElementById('em-qty').value       = item.Quantity || '';
+  document.getElementById('em-uom').value       = item.UoM || 'KG';
+  document.getElementById('em-plant').value     = req.plant_PlantCode || '';
+  document.getElementById('em-lab').value       = req.lab_LabCode || '';
+  document.getElementById('em-category').value  = req.Category || '';
+
+  // Store IDs for submit
+  document.getElementById('em-item-id').value   = item.ID || '';
+
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+}
+
+async function submitEdit() {
+  const itemId  = document.getElementById('em-item-id').value;
+  const reqId   = document.getElementById('em-req-id').value;
+  const qty     = parseFloat(document.getElementById('em-qty').value);
+  const uom     = document.getElementById('em-uom').value;
+  const reqName = document.getElementById('em-req-name').value.trim();
+  const reqFor  = document.getElementById('em-req-for').value.trim();
+  const needed  = document.getElementById('em-needed').value;
+  const plant   = document.getElementById('em-plant').value;
+  const lab     = document.getElementById('em-lab').value;
+  const cat     = document.getElementById('em-category').value.trim();
+
+  if (!qty || qty <= 0) { showToast('Enter a valid quantity', 'error'); return; }
+
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch(`${ODATA}/RequisitionItems/${itemId}`, {
+        method : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({ Quantity: qty, UoM: uom })
+      }),
+      fetch(`${ODATA}/Requisitions/${reqId}`, {
+        method : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({
+          RequisitionName  : reqName,
+          RequestedFor     : reqFor,
+          NeededBy         : needed || null,
+          plant_PlantCode  : plant,
+          lab_LabCode      : lab,
+          Category         : cat
+        })
+      })
+    ]);
+
+    if (r1.ok && r2.ok) {
+      closeEditModal();
+      showToast('Requisition updated successfully', 'success');
+      load();
+    } else {
+      const err = await (r1.ok ? r2 : r1).json();
+      showToast(err?.error?.message || 'Update failed', 'error');
+    }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
+// ── Dispense ───────────────────────────────────────────────
+function openDispense() {
+  const arr = [...checkedSet];
+  if (arr.length !== 1) return;
+  const item = displayed[arr[0]];
+  const req  = item?.requisition || {};
+  const spec = item?.spec || {};
+  document.getElementById('d-item-label').value =
+    `${req.RequisitionID} / ${String(item.ItemNumber||0).padStart(6,'0')} — ${spec.Description||''}`;
+  document.getElementById('d-qty').value = item.Quantity || 1;
+  document.getElementById('d-container').value = '';
+  document.getElementById('dispense-modal').classList.add('open');
+}
+
+function closeDispenseModal() {
+  document.getElementById('dispense-modal').classList.remove('open');
+}
+
+async function executeDispense() {
+  const containerID = document.getElementById('d-container').value.trim();
+  const qty = parseFloat(document.getElementById('d-qty').value) || 0;
+  const item = displayed[[...checkedSet][0]];
+  if (!containerID) { showToast('Enter a container ID', 'error'); return; }
+  if (qty <= 0)     { showToast('Enter a valid quantity', 'error'); return; }
+
+  try {
+    const r = await fetch(`${ODATA}/dispense`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ containerID, reqItemID: item?.ID, quantity: qty, uom: 'KG' })
+    });
+    if (r.ok) {
+      closeDispenseModal();
+      showToast('Dispensed successfully', 'success');
+      load();
+    } else {
+      const e = await r.json();
+      showToast(e?.error?.message || 'Dispense failed', 'error');
+    }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
+// ── Toast ──────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  setTimeout(() => t.className = '', 3000);
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+{
+  "_version": "1.65.0",
+  "sap.app": {
+    "id": "lims.manage.containers",
+    "type": "application",
+    "title": "Manage Containers",
+    "description": "Track and manage physical laboratory containers",
+    "dataSources": {
+      "mainService": {
+        "uri": "/odata/v4/lims/",
+        "type": "OData",
+        "settings": { "odataVersion": "4.0" }
+      }
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.fe.templates": {}
+      }
+    },
+    "models": {
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "routing": {
+      "routes": [
+        {
+          "name": "ContainersList",
+          "target": "ContainersList",
+          "pattern": ":?query:"
+        },
+        {
+          "name": "ContainersObjectPage",
+          "target": "ContainersObjectPage",
+          "pattern": "Containers({key}):?query:"
+        }
+      ],
+      "targets": {
+        "ContainersList": {
+          "type": "Component",
+          "id": "ContainersList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "Containers",
+              "navigation": {
+                "Containers": {
+                  "detail": { "route": "ContainersObjectPage" }
+                }
+              }
+            }
+          }
+        },
+        "ContainersObjectPage": {
+          "type": "Component",
+          "id": "ContainersObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "entitySet": "Containers"
+            }
+          }
+        }
+      }
+    }
+  },
+  "sap.fiori": {
+    "registrationIds": ["F-LIMS-004"],
+    "archeType": "transactional"
+  }
+}

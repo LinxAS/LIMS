@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Manage Forecasts – LIMS</title>
+  <link rel="stylesheet" href="/shared/lims.css"/>
+  <script src="/shared/lims.js"></script>
+  <style>
+    .col-avail { background: #e8f1fb; border-left: 2px solid #0a6ed1; border-right: 2px solid #0a6ed1; }
+    .lims-table thead .col-avail { background: #254e85; }
+    .lims-table { table-layout: fixed; width: 100%; }
+    .lims-table thead th, .lims-table tbody td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<nav class="lims-nav">
+  <span class="breadcrumb"><span class="nav-icon">📈</span> LIMS – Manage Forecasts</span>
+  <a class="back-link" href="/launchpad.html">🏠 Back to Launchpad</a>
+</nav>
+
+<div class="lims-page">
+
+  <!-- Filter -->
+  <div class="lims-filter">
+    <h2>Filter Forecasts</h2>
+    <div class="form-grid">
+      <div class="field"><label>Forecast ID</label><input id="f-fid" placeholder="e.g. FOR-1001"/></div>
+      <div class="field"><label>Specification No.</label><input id="f-spec" placeholder="Spec number"/></div>
+      <div class="field"><label>Material No.</label><input id="f-mat" placeholder="Material number"/></div>
+      <div class="field"><label>Requested For</label><input id="f-reqfor" placeholder="User ID"/></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Date Submitted</label><input id="f-submitted" type="date"/></div>
+      <div class="field"><label>Needed By</label><input id="f-needed" type="date"/></div>
+      <div class="field"><label>Item Status</label>
+        <select id="f-status">
+          <option value="">All Statuses</option>
+          <option value="New">New</option>
+          <option value="Completed">Completed</option>
+          <option value="PO Created">PO Created</option>
+        </select>
+      </div>
+      <div class="field" style="flex-direction:row;align-items:flex-end;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="clearFilters()">✕ Clear Filters</button>
+        <button class="btn btn-primary" onclick="applyFilter()">GO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="table-toolbar">
+    <span id="row-count" style="font-size:12px;color:#666;margin-right:auto"></span>
+    <a href="/manage-forecasts/webapp/create.html" class="btn btn-secondary">＋ Create Forecast</a>
+    <button class="btn btn-secondary" onclick="editForecast()">✏ Edit Forecast</button>
+    <button class="btn btn-secondary" onclick="openRequestStock()">📦 Request Stock</button>
+    <button class="btn-icon export-btn" title="Export to Excel" data-table="main-table" data-filename="Manage_Forecasts.csv"></button>
+  </div>
+
+  <!-- Table -->
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;overflow:hidden">
+    <div class="table-wrapper">
+      <table class="lims-table" id="main-table">
+        <colgroup>
+          <col style="width:2.5%"/>
+          <col style="width:9%"/>
+          <col style="width:7%"/>
+          <col style="width:11%"/>
+          <col style="width:10%"/>
+          <col style="width:11%"/>
+          <col style="width:7%"/>
+          <col style="width:4.5%"/>
+          <col style="width:9%"/>
+          <col style="width:9%"/>
+          <col style="width:8%"/>
+          <col style="width:12%"/>
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="th-cb"><input type="checkbox" id="cb-all" onchange="toggleAll(this)"/></th>
+            <th class="sortable" onclick="sort('forecastID')">Forecast ID ↕</th>
+            <th>Item Number</th>
+            <th>Specification Number</th>
+            <th>Material Number</th>
+            <th class="col-avail text-right">Available Qty In Plant</th>
+            <th class="text-right">Order Qty</th>
+            <th>UoM</th>
+            <th>Item Status</th>
+            <th>Requested For</th>
+            <th>Needed By</th>
+            <th>Date Submitted</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Request Stock Modal -->
+<div class="modal-overlay" id="stock-modal">
+  <div class="modal" style="width:400px">
+    <div class="modal-head">
+      <h3>Request Stock</h3>
+      <button class="modal-close" onclick="closeStockModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" style="margin-bottom:12px">
+        <label>Purchase Order Number</label>
+        <input id="m-order-num" placeholder="e.g. PO-2026-0055"/>
+      </div>
+      <div class="form-grid">
+        <div class="field" style="grid-column:span 2">
+          <label>Qty</label>
+          <input id="m-qty" type="number" min="0.001" step="0.001"/>
+        </div>
+        <div class="field" style="grid-column:span 2">
+          <label>UoM</label>
+          <input readonly value="KG" class="auto-fill"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeStockModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitStock()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ODATA = '/odata/v4/lims';
+let allRows = [];
+
+async function load() {
+  try {
+    const r = await fetch(
+      `${ODATA}/ForecastItems?$expand=forecast($select=ForecastID,Status,DateSubmitted,NeededBy,CreatedBy),spec($select=SpecNumber,Description),material($select=MaterialNumber,Description)&$orderby=forecast_ForecastID,ItemNumber`
+    );
+    const d = await r.json();
+    allRows = d.value || [];
+    render(allRows);
+    makeResizable('main-table');
+  } catch(e) {
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="12" class="table-empty">Failed to load data</td></tr>`;
+  }
+}
+
+function itemStatusBadge(s) {
+  if (s === 'Completed')  return `<span class="badge badge-green">✓ Completed</span>`;
+  if (s === 'PO Created') return `<span class="badge badge-blue">📋 PO Created</span>`;
+  return `<span class="badge badge-outline">☆ New</span>`;
+}
+
+function render(rows) {
+  document.getElementById('row-count').textContent = `${rows.length} item(s)`;
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="12" class="table-empty">No forecast items found.</td></tr>`; return; }
+  tbody.innerHTML = rows.map((item, i) => {
+    const fc   = item.forecast || {};
+    const spec = item.spec || {};
+    const mat  = item.material || {};
+    return `<tr onclick="selectRow(${i})" id="tr-${i}">
+      <td class="cb-cell"><input type="checkbox" class="row-cb"/></td>
+      <td class="fw600">${fc.ForecastID || item.forecast_ForecastID || ''}</td>
+      <td>${String(item.ItemNumber||0).padStart(6,'0')}</td>
+      <td>${spec.SpecNumber || item.spec_SpecNumber || ''}</td>
+      <td>${mat.MaterialNumber || item.material_MaterialNumber || ''}</td>
+      <td class="col-avail text-right">${(item.AvailableQtyInPlant||0).toLocaleString()}</td>
+      <td class="text-right">${(item.Quantity||0).toLocaleString()}</td>
+      <td>${item.UoM||'KG'}</td>
+      <td>${itemStatusBadge(item.ItemStatus)}</td>
+      <td>${item.RequestedFor || ''}</td>
+      <td>${item.NeededBy || ''}</td>
+      <td>${fc.DateSubmitted || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+let selectedIdx = null;
+function selectRow(i) {
+  if (selectedIdx !== null) document.getElementById(`tr-${selectedIdx}`)?.classList.remove('selected');
+  selectedIdx = i;
+  document.getElementById(`tr-${i}`)?.classList.add('selected');
+}
+
+function applyFilter() {
+  const fFid  = document.getElementById('f-fid').value.trim().toUpperCase();
+  const fSpec = document.getElementById('f-spec').value.trim().toUpperCase();
+  const fMat  = document.getElementById('f-mat').value.trim().toUpperCase();
+  const fFor  = document.getElementById('f-reqfor').value.trim().toUpperCase();
+  const fSub  = document.getElementById('f-submitted').value;
+  const fNeed = document.getElementById('f-needed').value;
+  const fSt   = document.getElementById('f-status').value;
+
+  render(allRows.filter(item => {
+    const fc   = item.forecast || {};
+    const spec = item.spec || {};
+    const mat  = item.material || {};
+    return (!fFid  || (fc.ForecastID||'').toUpperCase().includes(fFid))
+        && (!fSpec || (spec.SpecNumber||'').includes(fSpec))
+        && (!fMat  || (mat.MaterialNumber||'').includes(fMat))
+        && (!fFor  || (item.RequestedFor||'').toUpperCase().includes(fFor))
+        && (!fSub  || fc.DateSubmitted === fSub)
+        && (!fNeed || item.NeededBy === fNeed)
+        && (!fSt   || item.ItemStatus === fSt);
+  }));
+}
+
+function clearFilters() {
+  ['f-fid','f-spec','f-mat','f-reqfor','f-submitted','f-needed'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('f-status').value = '';
+  render(allRows);
+}
+
+function toggleAll(cb) { document.querySelectorAll('.row-cb').forEach(c => c.checked = cb.checked); }
+function sort(key) { allRows.sort((a,b) => ((a.forecast?.ForecastID||'')).localeCompare(b.forecast?.ForecastID||'')); render(allRows); }
+
+function editForecast() {
+  if (selectedIdx === null) { showToast('Select a forecast item first', 'info'); return; }
+  const fc = allRows[selectedIdx]?.forecast;
+  if (fc) window.location.href = `/manage-forecasts/webapp/create.html?edit=${fc.ForecastID}`;
+}
+
+function openRequestStock() { document.getElementById('stock-modal').classList.add('open'); }
+function closeStockModal()   { document.getElementById('stock-modal').classList.remove('open'); }
+
+async function submitStock() {
+  const orderNum = document.getElementById('m-order-num').value.trim();
+  const qty = parseFloat(document.getElementById('m-qty').value) || 0;
+  if (!orderNum) { showToast('Order number required', 'error'); return; }
+  showToast(`Stock request ${orderNum} submitted`, 'success');
+  closeStockModal();
+}
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3000);
+}
+
+load();
+</script>
+</body>
+</html>

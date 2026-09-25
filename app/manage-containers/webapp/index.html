@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Manage Containers – LIMS</title>
+  <link rel="stylesheet" href="/shared/lims.css"/>
+  <script src="/shared/lims.js"></script>
+  <style>
+    .lims-table { table-layout: fixed; width: 100%; }
+    .lims-table thead th, .lims-table tbody td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<nav class="lims-nav">
+  <span class="breadcrumb"><span class="nav-icon">📦</span> LIMS – Manage Containers</span>
+  <a class="back-link" href="/launchpad.html">🏠 Back to Launchpad</a>
+</nav>
+
+<div class="lims-page">
+
+  <!-- Filter -->
+  <div class="lims-filter">
+    <h2>Filter Containers</h2>
+    <div class="form-grid-5">
+      <div class="field"><label>Parent Container</label><input id="f-cont" placeholder="Container ID"/></div>
+      <div class="field"><label>Specification</label><input id="f-spec" placeholder="Spec number"/></div>
+      <div class="field"><label>Specification Description</label><input id="f-specdesc" placeholder="Description"/></div>
+      <div class="field"><label>Material</label><input id="f-mat" placeholder="Material number"/></div>
+      <div class="field"><label>Plant</label>
+        <select id="f-plant">
+          <option value="">All Plants</option>
+          <option value="NAIS">NAIS</option>
+          <option value="NAIT">NAIT</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid-5">
+      <div class="field"><label>Laboratory</label>
+        <select id="f-lab">
+          <option value="">All Labs</option>
+          <option value="BODY DEVELOPMENT">Body Development</option>
+          <option value="HP LAB">HP Lab</option>
+          <option value="HP PILOT LAB">HP Pilot Lab</option>
+        </select>
+      </div>
+      <div class="field"><label>Mfg. Lot No.</label><input id="f-lot" placeholder="Lot number"/></div>
+      <div class="field"><label>Status</label>
+        <select id="f-status">
+          <option value="">All</option>
+          <option value="Available">Available</option>
+          <option value="Disposed">Disposed</option>
+        </select>
+      </div>
+      <div class="field" style="flex-direction:row;align-items:flex-end;gap:8px;grid-column:span 2;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="clearFilters()">✕ Clear Filters</button>
+        <button class="btn btn-primary" onclick="applyFilter()">GO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="table-toolbar">
+    <button class="btn btn-secondary" onclick="printLabel()">🖨 Print Label</button>
+    <button class="btn btn-orange" onclick="openDispense()">⚗ Dispense</button>
+    <button class="btn btn-secondary" onclick="openCreateModal()">＋ Create Parent Container</button>
+    <button class="btn btn-secondary" id="btn-edit-cont" onclick="openEditContModal()" disabled>✏ Edit Container</button>
+    <button class="btn btn-danger" onclick="disposeContainer()">🗑 Dispose</button>
+    <button class="btn-icon export-btn" title="Export to Excel" data-table="main-table" data-filename="Manage_Containers.csv"></button>
+  </div>
+
+  <!-- Split layout -->
+  <div class="lims-split">
+    <div class="split-list" id="list-area">
+      <div class="table-wrapper">
+        <table class="lims-table" id="main-table">
+          <colgroup>
+            <col style="width:2.5%"/>
+            <col style="width:8.5%"/>
+            <col style="width:8%"/>
+            <col style="width:11%"/>
+            <col style="width:8%"/>
+            <col style="width:4%"/>
+            <col style="width:9%"/>
+            <col style="width:8%"/>
+            <col style="width:6%"/>
+            <col style="width:7%"/>
+            <col style="width:3.5%"/>
+            <col style="width:8%"/>
+            <col style="width:16.5%"/>
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="th-cb"><input type="checkbox" id="cb-all" onchange="toggleAll(this)"/></th>
+              <th class="sortable" onclick="sort('ContainerID')">Parent Container ↕</th>
+              <th>Specification</th>
+              <th>Specification Description</th>
+              <th>Material</th>
+              <th>Plant</th>
+              <th>Laboratory</th>
+              <th>Mfg. Lot No.</th>
+              <th class="text-right">Initial Qty</th>
+              <th class="text-right">Remaining Qty</th>
+              <th>UoM</th>
+              <th>Expiration Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="split-detail" id="detail-panel">
+      <div class="detail-card">
+        <div class="detail-card-head">
+          <h3 id="dp-title">–</h3>
+          <button class="detail-close" onclick="closeDetail()">✕</button>
+        </div>
+        <div class="detail-card-body">
+
+          <div class="detail-section">
+            <h4>Overview</h4>
+            <div class="detail-row"><span class="detail-lbl">Status</span><span class="detail-val" id="dp-status">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Expiration Date</span><span class="detail-val" id="dp-expiry">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Initial Quantity</span><span class="detail-val" id="dp-init-qty">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Remaining Quantity</span><span class="detail-val" id="dp-rem-qty">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Mfg. Lot No.</span><span class="detail-val" id="dp-lot">–</span></div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-head">
+              <h4>Dispensing Details</h4>
+              <button class="btn btn-secondary" style="font-size:11px;height:26px;padding:3px 10px">🖨 Print Label</button>
+            </div>
+            <div class="table-wrapper">
+              <table class="mini-table">
+                <thead><tr>
+                  <th>Child Container</th>
+                  <th>Date</th>
+                  <th>Qty</th>
+                  <th>UoM</th>
+                  <th>By</th>
+                </tr></thead>
+                <tbody id="dp-dispensing"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Additional Information</h4>
+            <div class="detail-row"><span class="detail-lbl">Safety H</span><span class="detail-val" id="dp-h">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Safety S</span><span class="detail-val" id="dp-s">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Safety R</span><span class="detail-val" id="dp-r">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">GHS Hazard Class</span><span class="detail-val" id="dp-ghs">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Owner</span><span class="detail-val" id="dp-owner">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Comments</span><span class="detail-val" id="dp-comments" style="max-width:180px;text-align:right">–</span></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Parent Container Modal -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal" style="width:600px">
+    <div class="modal-head">
+      <h3>Create Parent Container</h3>
+      <button class="modal-close" onclick="closeCreateModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:span 2">
+          <label>Specification Number *</label>
+          <input id="m-spec" placeholder="Search spec number" list="m-spec-list"/>
+          <datalist id="m-spec-list"></datalist>
+        </div>
+        <div class="field">
+          <label>Plant *</label>
+          <select id="m-plant">
+            <option value="NAIS">NAIS</option>
+            <option value="NAIT">NAIT</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Laboratory</label>
+          <select id="m-lab">
+            <option value="BODY DEVELOPMENT">Body Development Lab</option>
+            <option value="HP LAB">HP Lab</option>
+            <option value="HP PILOT LAB">HP Pilot Lab</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field" style="grid-column:span 2">
+          <label>Material Number</label>
+          <input id="m-mat" class="auto-fill" readonly placeholder="Auto-filled"/>
+        </div>
+        <div class="field">
+          <label>Expiration Date *</label>
+          <input id="m-expiry" type="date"/>
+        </div>
+        <div class="field">
+          <label>Manufacturing Lot #</label>
+          <input id="m-lot" placeholder="e.g. LOT-2025-001"/>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Net Quantity *</label>
+          <div style="display:flex;gap:6px">
+            <input id="m-qty" type="number" min="0.001" step="0.001" placeholder="0"/>
+            <span style="padding:7px 8px;background:#f5f5f5;border:1px solid #bdbdbd;border-radius:4px;font-size:13px;white-space:nowrap">KG</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Tare</label>
+          <div style="display:flex;gap:6px">
+            <input id="m-tare" type="number" min="0" step="0.001" placeholder="0"/>
+            <span style="padding:7px 8px;background:#f5f5f5;border:1px solid #bdbdbd;border-radius:4px;font-size:13px;white-space:nowrap">KG</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>H *</label><input id="m-h" placeholder="H-code"/>
+        </div>
+        <div class="field">
+          <label>S *</label><input id="m-s" placeholder="S-code"/>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>R *</label><input id="m-r" placeholder="R-code"/>
+        </div>
+        <div class="field" style="grid-column:span 2">
+          <label>GHS Hazard Classification</label><input id="m-ghs" placeholder="e.g. Irritant"/>
+        </div>
+        <div class="field">
+          <label>Owner</label><input id="m-owner" value="JJOSEPH"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Comments</label>
+        <textarea id="m-comments" placeholder="Optional comments..."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="saveContainer(true)">🖨 Save and Print</button>
+      <button class="btn btn-primary" onclick="saveContainer(false)">Save</button>
+      <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dispense Modal -->
+<div class="modal-overlay" id="dispense-modal">
+  <div class="modal" style="width:680px">
+    <div class="modal-head">
+      <h3>Dispense Child</h3>
+      <button class="modal-close" onclick="closeDispenseModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>Plant</label><input id="d-plant" readonly class="auto-fill" value="NAIS"/></div>
+        <div class="field"><label>Laboratory</label><input id="d-lab" readonly class="auto-fill" value="BODY DEVELOPMENT"/></div>
+      </div>
+      <div class="table-wrapper" style="margin-top:12px">
+        <table class="mini-table">
+          <thead><tr>
+            <th style="width:36px"><input type="checkbox"/></th>
+            <th>Container</th>
+            <th>Spec Number</th>
+            <th>Spec Description</th>
+            <th>Parent Container</th>
+            <th>Requested Qty</th>
+            <th>Available Qty</th>
+            <th>Dispensed Qty *</th>
+            <th>UoM</th>
+          </tr></thead>
+          <tbody id="d-tbody">
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td id="d-cont-id">–</td>
+              <td id="d-spec-num">–</td>
+              <td id="d-spec-desc">–</td>
+              <td id="d-parent">–</td>
+              <td>0</td>
+              <td id="d-avail">0</td>
+              <td><input type="number" id="d-qty" min="0.001" step="0.001" value="1" style="width:80px"/></td>
+              <td>KG</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="executeDispense()">⚗ Dispense</button>
+      <button class="btn btn-secondary">Save and Close</button>
+      <button class="btn btn-ghost" onclick="closeDispenseModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Container Modal -->
+<div class="modal-overlay" id="edit-cont-modal">
+  <div class="modal" style="width:680px">
+    <div class="modal-head">
+      <h3>Edit Container</h3>
+      <button class="modal-close" onclick="closeEditContModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label>Container ID</label>
+          <input id="ec-cont-id" readonly class="auto-fill"/>
+        </div>
+        <div class="field">
+          <label>Specification Number</label>
+          <input id="ec-spec" readonly class="auto-fill"/>
+        </div>
+        <div class="field">
+          <label>Material Number</label>
+          <input id="ec-mat" readonly class="auto-fill"/>
+        </div>
+        <div class="field">
+          <label>Initial Qty</label>
+          <input id="ec-init-qty" readonly class="auto-fill"/>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="field">
+          <label>Plant</label>
+          <select id="ec-plant">
+            <option value="NAIS">NAIS</option>
+            <option value="NAIT">NAIT</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Laboratory</label>
+          <select id="ec-lab">
+            <option value="BODY DEVELOPMENT">Body Development</option>
+            <option value="HP LAB">HP Lab</option>
+            <option value="HP PILOT LAB">HP Pilot Lab</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Mfg. Lot No.</label>
+          <input id="ec-lot" placeholder="e.g. LOT-2025-001"/>
+        </div>
+        <div class="field">
+          <label>Expiration Date</label>
+          <input id="ec-expiry" type="date"/>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="field">
+          <label>Safety H</label>
+          <input id="ec-h" placeholder="H-code"/>
+        </div>
+        <div class="field">
+          <label>Safety S</label>
+          <input id="ec-s" placeholder="S-code"/>
+        </div>
+        <div class="field">
+          <label>Safety R</label>
+          <input id="ec-r" placeholder="R-code"/>
+        </div>
+        <div class="field">
+          <label>GHS Hazard Class</label>
+          <input id="ec-ghs" placeholder="e.g. Irritant"/>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="field">
+          <label>Owner</label>
+          <input id="ec-owner" placeholder="User ID"/>
+        </div>
+        <div class="field" style="grid-column:span 3">
+          <label>Comments</label>
+          <input id="ec-comments" placeholder="Optional comments"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeEditContModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEditContainer()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ODATA = '/odata/v4/lims';
+let allRows = [];
+let selectedContainer = null;
+let specs = [];
+
+async function load() {
+  const [cr, sr] = await Promise.all([
+    fetch(`${ODATA}/Containers?$expand=spec($select=SpecNumber,Description),material($select=MaterialNumber,Description),dispensingDetails&$orderby=ContainerID`),
+    fetch(`${ODATA}/Specifications?$expand=material($select=MaterialNumber)&$orderby=SpecNumber`)
+  ]);
+  const cd = await cr.json(); allRows = cd.value || [];
+  const sd = await sr.json(); specs = sd.value || [];
+  makeResizable('main-table');
+  // Populate spec datalist in create modal
+  const dl = document.getElementById('m-spec-list');
+  specs.forEach(s => { const o = document.createElement('option'); o.value = s.SpecNumber; o.textContent = `${s.SpecNumber} – ${s.Description||''}`; dl.appendChild(o); });
+  document.getElementById('m-spec').addEventListener('change', function() {
+    const sp = specs.find(s => s.SpecNumber === this.value);
+    document.getElementById('m-mat').value = sp?.material_MaterialNumber || '';
+  });
+  render(allRows);
+}
+
+function statusBadge(s) {
+  if (s === 'Available') return `<span class="badge badge-green">● ${s}</span>`;
+  return `<span class="badge badge-red">✕ ${s}</span>`;
+}
+
+function render(rows) {
+  checkedSet.clear();
+  updateEditBtn();
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="13" class="table-empty">No containers found.</td></tr>`; return; }
+  tbody.innerHTML = rows.map((c, i) => {
+    const spec = c.spec || {};
+    const mat  = c.material || {};
+    const remPct = c.InitialQuantity ? (c.RemainingQuantity / c.InitialQuantity) : 1;
+    const rowCls = c.Status === 'Disposed' ? 'row-red' : (remPct < 0.15 ? 'row-yellow' : '');
+    return `<tr class="${rowCls}" onclick="selectRow(${i})" id="tr-${i}">
+      <td class="cb-cell" onclick="event.stopPropagation()"><input type="checkbox" class="row-cb" onchange="onCheckChange(this,${i})"/></td>
+      <td class="fw600">${c.ContainerID}</td>
+      <td>${spec.SpecNumber||''}</td>
+      <td>${spec.Description||''}</td>
+      <td>${mat.MaterialNumber||''}</td>
+      <td>${c.plant_PlantCode||''}</td>
+      <td>${c.lab_LabCode||''}</td>
+      <td>${c.MfgLotNo||''}</td>
+      <td class="text-right">${(c.InitialQuantity||0).toLocaleString()}</td>
+      <td class="text-right">${(c.RemainingQuantity||0).toLocaleString()}</td>
+      <td>${c.UoM||'KG'}</td>
+      <td>${c.ExpirationDate||''}</td>
+      <td>${statusBadge(c.Status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+let selectedIdx = null;
+function selectRow(i) {
+  if (selectedIdx !== null) document.getElementById(`tr-${selectedIdx}`)?.classList.remove('selected');
+  selectedIdx = i;
+  document.getElementById(`tr-${i}`)?.classList.add('selected');
+  const c = allRows[i];
+  selectedContainer = c;
+  const spec = c.spec || {};
+
+  document.getElementById('dp-title').textContent = c.ContainerID;
+  document.getElementById('dp-status').innerHTML  = c.Status === 'Available'
+    ? '<span class="badge badge-green">● Available</span>'
+    : '<span class="badge badge-red">✕ Disposed</span>';
+  document.getElementById('dp-expiry').textContent  = c.ExpirationDate || '–';
+  document.getElementById('dp-init-qty').textContent= `${(c.InitialQuantity||0).toLocaleString()} ${c.UoM||'KG'}`;
+  document.getElementById('dp-rem-qty').textContent = `${(c.RemainingQuantity||0).toLocaleString()} ${c.UoM||'KG'}`;
+  document.getElementById('dp-lot').textContent     = c.MfgLotNo || '–';
+  document.getElementById('dp-h').textContent       = c.SafetyH || '–';
+  document.getElementById('dp-s').textContent       = c.SafetyS || '–';
+  document.getElementById('dp-r').textContent       = c.SafetyR || '–';
+  document.getElementById('dp-ghs').textContent     = c.GHSHazardClass || 'Non-Hazardous';
+  document.getElementById('dp-owner').textContent   = c.Owner || '–';
+  document.getElementById('dp-comments').textContent= c.Comments || '–';
+
+  const disp = c.dispensingDetails || [];
+  document.getElementById('dp-dispensing').innerHTML = disp.length
+    ? disp.map(d => `<tr>
+        <td>${d.ChildContainerID||''}</td>
+        <td>${d.DispensingDate||''}</td>
+        <td>${d.QtyIssued||0}</td>
+        <td>${d.UoM||''}</td>
+        <td>${d.DispensedBy||''}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" class="table-empty">No dispensing records</td></tr>';
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  if (selectedIdx !== null) { document.getElementById(`tr-${selectedIdx}`)?.classList.remove('selected'); selectedIdx = null; }
+}
+
+function applyFilter() {
+  const fC = document.getElementById('f-cont').value.trim().toUpperCase();
+  const fS = document.getElementById('f-spec').value.trim().toUpperCase();
+  const fD = document.getElementById('f-specdesc').value.trim().toUpperCase();
+  const fM = document.getElementById('f-mat').value.trim().toUpperCase();
+  const fP = document.getElementById('f-plant').value;
+  const fL = document.getElementById('f-lab').value;
+  const fSt= document.getElementById('f-status').value;
+  const fLo= document.getElementById('f-lot').value.trim().toUpperCase();
+  const filtered = allRows.filter(c => {
+    const sp = c.spec || {}; const mt = c.material || {};
+    return (!fC  || c.ContainerID.includes(fC))
+        && (!fS  || (sp.SpecNumber||'').includes(fS))
+        && (!fD  || (sp.Description||'').toUpperCase().includes(fD))
+        && (!fM  || (mt.MaterialNumber||'').includes(fM))
+        && (!fP  || c.plant_PlantCode === fP)
+        && (!fL  || c.lab_LabCode === fL)
+        && (!fSt || c.Status === fSt)
+        && (!fLo || (c.MfgLotNo||'').toUpperCase().includes(fLo));
+  });
+  render(filtered); closeDetail();
+}
+
+function clearFilters() {
+  ['f-cont','f-spec','f-specdesc','f-mat','f-lot'].forEach(id => document.getElementById(id).value='');
+  ['f-plant','f-lab','f-status'].forEach(id => document.getElementById(id).value='');
+  render(allRows); closeDetail();
+}
+
+const checkedSet = new Set();
+
+function onCheckChange(cb, idx) {
+  if (cb.checked) checkedSet.add(idx); else checkedSet.delete(idx);
+  updateEditBtn();
+}
+
+function updateEditBtn() {
+  const arr = [...checkedSet];
+  const singleAvail = arr.length === 1 && allRows[arr[0]]?.Status === 'Available';
+  document.getElementById('btn-edit-cont').disabled = !singleAvail;
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('.row-cb').forEach((c, i) => {
+    c.checked = cb.checked;
+    if (cb.checked) checkedSet.add(i); else checkedSet.delete(i);
+  });
+  updateEditBtn();
+}
+function sort(key) { allRows.sort((a,b) => (a[key]||'').localeCompare(b[key]||'')); render(allRows); }
+
+// Edit container modal
+function openEditContModal() {
+  const arr = [...checkedSet];
+  if (arr.length !== 1) return;
+  const c = allRows[arr[0]];
+  const spec = c.spec || {};
+  const mat  = c.material || {};
+
+  document.getElementById('ec-cont-id').value   = c.ContainerID;
+  document.getElementById('ec-spec').value      = spec.SpecNumber || c.spec_SpecNumber || '';
+  document.getElementById('ec-mat').value       = mat.MaterialNumber || c.material_MaterialNumber || '';
+  document.getElementById('ec-init-qty').value  = `${(c.InitialQuantity||0).toLocaleString()} ${c.UoM||'KG'}`;
+  document.getElementById('ec-plant').value     = c.plant_PlantCode || 'NAIS';
+  document.getElementById('ec-lab').value       = c.lab_LabCode || 'BODY DEVELOPMENT';
+  document.getElementById('ec-lot').value       = c.MfgLotNo || '';
+  document.getElementById('ec-expiry').value    = c.ExpirationDate || '';
+  document.getElementById('ec-h').value         = c.SafetyH || '';
+  document.getElementById('ec-s').value         = c.SafetyS || '';
+  document.getElementById('ec-r').value         = c.SafetyR || '';
+  document.getElementById('ec-ghs').value       = c.GHSHazardClass || '';
+  document.getElementById('ec-owner').value     = c.Owner || '';
+  document.getElementById('ec-comments').value  = c.Comments || '';
+
+  document.getElementById('edit-cont-modal').classList.add('open');
+}
+
+function closeEditContModal() {
+  document.getElementById('edit-cont-modal').classList.remove('open');
+}
+
+async function submitEditContainer() {
+  const contID = document.getElementById('ec-cont-id').value;
+  const body = {
+    plant_PlantCode : document.getElementById('ec-plant').value,
+    lab_LabCode     : document.getElementById('ec-lab').value,
+    MfgLotNo        : document.getElementById('ec-lot').value.trim(),
+    ExpirationDate  : document.getElementById('ec-expiry').value || null,
+    SafetyH         : document.getElementById('ec-h').value.trim(),
+    SafetyS         : document.getElementById('ec-s').value.trim(),
+    SafetyR         : document.getElementById('ec-r').value.trim(),
+    GHSHazardClass  : document.getElementById('ec-ghs').value.trim(),
+    Owner           : document.getElementById('ec-owner').value.trim(),
+    Comments        : document.getElementById('ec-comments').value.trim()
+  };
+  try {
+    const r = await fetch(`${ODATA}/Containers/${contID}`, {
+      method : 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(body)
+    });
+    if (r.ok) {
+      closeEditContModal();
+      showToast(`Container ${contID} updated successfully`, 'success');
+      load();
+    } else {
+      const e = await r.json();
+      showToast(e?.error?.message || 'Update failed', 'error');
+    }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
+// Create container modal
+function openCreateModal() { document.getElementById('create-modal').classList.add('open'); }
+function closeCreateModal() { document.getElementById('create-modal').classList.remove('open'); }
+
+async function saveContainer(print) {
+  const specNum = document.getElementById('m-spec').value.trim();
+  const qty     = parseFloat(document.getElementById('m-qty').value) || 0;
+  const expiry  = document.getElementById('m-expiry').value;
+  if (!specNum) { showToast('Specification Number is required', 'error'); return; }
+  if (!expiry)  { showToast('Expiration Date is required', 'error'); return; }
+
+  const contID = `CONT-P-${String(allRows.length + 1).padStart(3,'0')}`;
+  const body = {
+    ContainerID       : contID,
+    spec_SpecNumber   : specNum,
+    material_MaterialNumber: document.getElementById('m-mat').value || null,
+    plant_PlantCode   : document.getElementById('m-plant').value,
+    lab_LabCode       : document.getElementById('m-lab').value,
+    MfgLotNo          : document.getElementById('m-lot').value,
+    InitialQuantity   : qty,
+    RemainingQuantity : qty,
+    UoM               : 'KG',
+    ExpirationDate    : expiry,
+    Status            : 'Available',
+    SafetyH           : document.getElementById('m-h').value,
+    SafetyS           : document.getElementById('m-s').value,
+    SafetyR           : document.getElementById('m-r').value,
+    GHSHazardClass    : document.getElementById('m-ghs').value,
+    Owner             : document.getElementById('m-owner').value,
+    Comments          : document.getElementById('m-comments').value
+  };
+  try {
+    const r = await fetch(`${ODATA}/Containers`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (r.ok) {
+      closeCreateModal();
+      showToast(`Container ${contID} created`, 'success');
+      if (print) showToast('Label sent to printer', 'info');
+      load();
+    } else { showToast('Error creating container', 'error'); }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
+// Dispense modal
+function openDispense() {
+  if (!selectedContainer) { showToast('Please select a container first', 'info'); return; }
+  const c = selectedContainer; const spec = c.spec || {};
+  document.getElementById('d-cont-id').textContent  = c.ContainerID;
+  document.getElementById('d-spec-num').textContent = spec.SpecNumber || '';
+  document.getElementById('d-spec-desc').textContent= spec.Description || '';
+  document.getElementById('d-parent').textContent   = c.ContainerID;
+  document.getElementById('d-avail').textContent    = c.RemainingQuantity || 0;
+  document.getElementById('d-plant').value          = c.plant_PlantCode || 'NAIS';
+  document.getElementById('d-lab').value            = c.lab_LabCode || '';
+  document.getElementById('dispense-modal').classList.add('open');
+}
+function closeDispenseModal() { document.getElementById('dispense-modal').classList.remove('open'); }
+
+async function executeDispense() {
+  if (!selectedContainer) return;
+  const qty = parseFloat(document.getElementById('d-qty').value) || 0;
+  if (qty <= 0) { showToast('Enter a valid quantity', 'error'); return; }
+  try {
+    const r = await fetch(`${ODATA}/dispense`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ containerID: selectedContainer.ContainerID, reqItemID: null, quantity: qty, uom: 'KG' })
+    });
+    if (r.ok) { closeDispenseModal(); showToast('Dispensed successfully', 'success'); load(); }
+    else { const e = await r.json(); showToast(e?.error?.message || 'Dispense failed', 'error'); }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
+function printLabel() {
+  if (!selectedContainer) { showToast('Select a container to print label', 'info'); return; }
+  showToast(`Label for ${selectedContainer.ContainerID} sent to printer`, 'success');
+}
+
+function disposeContainer() {
+  if (!selectedContainer) { showToast('Select a container to dispose', 'info'); return; }
+  if (!confirm(`Dispose container ${selectedContainer.ContainerID}?`)) return;
+  fetch(`${ODATA}/Containers/${selectedContainer.ContainerID}`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ Status: 'Disposed' })
+  }).then(r => { if (r.ok) { showToast('Container disposed', 'success'); load(); } });
+}
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3000);
+}
+
+load();
+</script>
+</body>
+</html>

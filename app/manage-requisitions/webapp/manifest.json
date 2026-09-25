@@ -1,0 +1,87 @@
+{
+  "_version": "1.65.0",
+  "sap.app": {
+    "id": "lims.manage.requisitions",
+    "type": "application",
+    "title": "Manage Requisitions",
+    "description": "View, submit and approve laboratory material requisitions",
+    "dataSources": {
+      "mainService": {
+        "uri": "/odata/v4/lims/",
+        "type": "OData",
+        "settings": { "odataVersion": "4.0" }
+      }
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.fe.templates": {}
+      }
+    },
+    "models": {
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "routing": {
+      "routes": [
+        {
+          "name": "RequisitionsList",
+          "target": "RequisitionsList",
+          "pattern": ":?query:"
+        },
+        {
+          "name": "RequisitionsObjectPage",
+          "target": "RequisitionsObjectPage",
+          "pattern": "Requisitions({key}):?query:"
+        }
+      ],
+      "targets": {
+        "RequisitionsList": {
+          "type": "Component",
+          "id": "RequisitionsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "Requisitions",
+              "navigation": {
+                "Requisitions": {
+                  "detail": { "route": "RequisitionsObjectPage" }
+                }
+              }
+            }
+          }
+        },
+        "RequisitionsObjectPage": {
+          "type": "Component",
+          "id": "RequisitionsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "entitySet": "Requisitions",
+              "navigation": {
+                "items": {
+                  "detail": { "route": "RequisitionItemsObjectPage" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "sap.fiori": {
+    "registrationIds": ["F-LIMS-001"],
+    "archeType": "transactional"
+  }
+}

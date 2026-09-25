@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Manage Inventory – LIMS</title>
+  <link rel="stylesheet" href="/shared/lims.css"/>
+  <script src="/shared/lims.js"></script>
+  <style>
+    .lims-table { table-layout: fixed; width: 100%; }
+    .lims-table thead th, .lims-table tbody td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<nav class="lims-nav">
+  <span class="breadcrumb"><span class="nav-icon">🗃️</span> LIMS – Manage Inventory</span>
+  <a class="back-link" href="/launchpad.html">🏠 Back to Launchpad</a>
+</nav>
+
+<div class="lims-page">
+
+  <!-- Filter -->
+  <div class="lims-filter">
+    <h2>Filter Inventory</h2>
+    <div class="form-grid-5">
+      <div class="field"><label>Specification</label><input id="f-spec" placeholder="Spec number"/></div>
+      <div class="field"><label>Specification Description</label><input id="f-specdesc" placeholder="Description"/></div>
+      <div class="field"><label>Material Number</label><input id="f-mat" placeholder="Material number"/></div>
+      <div class="field"><label>Plant</label>
+        <select id="f-plant">
+          <option value="">All Plants</option>
+          <option value="NAIS">NAIS</option>
+          <option value="NAIT">NAIT</option>
+        </select>
+      </div>
+      <div class="field" style="flex-direction:row;align-items:flex-end;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="clearFilters()">✕ Clear Filters</button>
+        <button class="btn btn-primary" onclick="applyFilter()">GO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="table-toolbar">
+    <button class="btn btn-secondary" onclick="openRequestStock('PO')">📦 Request Stock</button>
+    <button class="btn btn-secondary" onclick="openRequestStock('TO')">🔄 Stock Transfer</button>
+    <button class="btn-icon export-btn" title="Export to Excel" data-table="main-table" data-filename="Manage_Inventory.csv"></button>
+  </div>
+
+  <!-- Split layout -->
+  <div class="lims-split">
+    <div class="split-list">
+      <div class="table-wrapper">
+        <table class="lims-table" id="main-table">
+          <colgroup>
+            <col style="width:2.5%"/>
+            <col style="width:10%"/>
+            <col style="width:18%"/>
+            <col style="width:10%"/>
+            <col style="width:5%"/>
+            <col style="width:9%"/>
+            <col style="width:12%"/>
+            <col style="width:10%"/>
+            <col style="width:10%"/>
+            <col style="width:4.5%"/>
+            <col style="width:9%"/>
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="th-cb"><input type="checkbox" id="cb-all" onchange="toggleAll(this)"/></th>
+              <th class="sortable" onclick="sort('spec_SpecNumber')">Specification ↕</th>
+              <th>Specification Description</th>
+              <th>Material</th>
+              <th>Plant</th>
+              <th class="text-right">Total Qty</th>
+              <th class="text-right">Total Requisitioned</th>
+              <th class="text-right">Total Available</th>
+              <th class="text-right">Total On Order</th>
+              <th>UoM</th>
+              <th>Stock Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="split-detail" id="detail-panel">
+      <div class="detail-card">
+        <div class="detail-card-head">
+          <h3 id="dp-title">Container View</h3>
+          <button class="detail-close" onclick="closeDetail()">✕</button>
+        </div>
+        <div class="detail-card-body">
+
+          <div class="detail-section">
+            <h4>Item Details</h4>
+            <div class="detail-row"><span class="detail-lbl">Spec Number</span><span class="detail-val fw600" id="dp-spec">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Description</span><span class="detail-val" id="dp-desc">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Material</span><span class="detail-val" id="dp-mat">–</span></div>
+            <div class="detail-row"><span class="detail-lbl">Plant</span><span class="detail-val" id="dp-plant">–</span></div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Stock Information</h4>
+            <div class="table-wrapper">
+              <table class="mini-table">
+                <thead><tr>
+                  <th>Laboratory</th>
+                  <th>Current Containers</th>
+                  <th class="text-right">Available Qty</th>
+                  <th>UoM</th>
+                </tr></thead>
+                <tbody id="dp-containers"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Stock Order Information</h4>
+            <div class="table-wrapper">
+              <table class="mini-table">
+                <thead><tr>
+                  <th>Type</th>
+                  <th>Number</th>
+                  <th class="text-right">Requested Qty</th>
+                  <th>UoM</th>
+                  <th>Status</th>
+                </tr></thead>
+                <tbody id="dp-orders"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Request Stock Modal -->
+<div class="modal-overlay" id="stock-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-head">
+      <h3 id="modal-title">Request Stock: Purchase Order</h3>
+      <button class="modal-close" onclick="closeStockModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" style="margin-bottom:14px">
+        <label id="modal-label">Purchase Order Number</label>
+        <input id="m-order-num" placeholder="e.g. PO-2026-0050"/>
+      </div>
+      <div class="form-grid">
+        <div class="field" style="grid-column:span 2">
+          <label>Qty</label>
+          <input id="m-qty" type="number" min="0.001" step="0.001" placeholder="0"/>
+        </div>
+        <div class="field" style="grid-column:span 2">
+          <label>UoM</label>
+          <input readonly value="KG" class="auto-fill"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeStockModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitStockRequest()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ODATA = '/odata/v4/lims';
+let allRows = [];
+let currentOrderType = 'PO';
+let selectedInv = null;
+
+async function load() {
+  try {
+    const r = await fetch(`${ODATA}/Inventory?$expand=spec($select=SpecNumber,Description),material($select=MaterialNumber,Description),plant,stockOrders&$orderby=spec_SpecNumber`);
+    const d = await r.json();
+    allRows = d.value || [];
+    render(allRows);
+    makeResizable('main-table');
+  } catch(e) {
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="11" class="table-empty">Failed to load data</td></tr>`;
+  }
+}
+
+function critClass(c) {
+  if (c <= 1) return 'row-red';
+  if (c === 2) return 'row-yellow';
+  return '';
+}
+function stockBadge(flag, crit) {
+  if (flag === 'Critical' || crit <= 1)
+    return `<span class="badge badge-red">✕ Critical</span>`;
+  if (flag === 'Low' || crit === 2)
+    return `<span class="badge badge-orange">⚠ Low</span>`;
+  return `<span class="badge badge-green">✓ OK</span>`;
+}
+
+function render(rows) {
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="11" class="table-empty">No inventory records found.</td></tr>`; return; }
+  tbody.innerHTML = rows.map((inv, i) => {
+    const spec = inv.spec || {}; const mat = inv.material || {};
+    const rowCls = critClass(inv.Criticality);
+    return `<tr class="${rowCls}" onclick="selectRow(${i})" id="tr-${i}">
+      <td class="cb-cell"><input type="checkbox" class="row-cb"/></td>
+      <td class="fw600">${spec.SpecNumber||inv.spec_SpecNumber||''}</td>
+      <td>${spec.Description||''}</td>
+      <td>${mat.MaterialNumber||inv.material_MaterialNumber||''}</td>
+      <td>${inv.plant_PlantCode||''}</td>
+      <td class="text-right">${(inv.TotalQuantity||0).toLocaleString()}</td>
+      <td class="text-right">${(inv.TotalRequisitioned||0).toLocaleString()}</td>
+      <td class="text-right">${(inv.TotalAvailable||0).toLocaleString()}</td>
+      <td class="text-right">${(inv.TotalOnOrder||0).toLocaleString()}</td>
+      <td>${inv.UoM||'KG'}</td>
+      <td>${stockBadge(inv.StockFlag, inv.Criticality)}</td>
+    </tr>`;
+  }).join('');
+}
+
+let selectedIdx = null;
+async function selectRow(i) {
+  if (selectedIdx !== null) document.getElementById(`tr-${selectedIdx}`)?.classList.remove('selected');
+  selectedIdx = i;
+  document.getElementById(`tr-${i}`)?.classList.add('selected');
+  const inv = allRows[i];
+  selectedInv = inv;
+  const spec = inv.spec || {}; const mat = inv.material || {};
+
+  document.getElementById('dp-title').textContent = `Container View – Plant ${inv.plant_PlantCode||''}`;
+  document.getElementById('dp-spec').textContent  = spec.SpecNumber || inv.spec_SpecNumber || '–';
+  document.getElementById('dp-desc').textContent  = spec.Description || '–';
+  document.getElementById('dp-mat').textContent   = mat.MaterialNumber || inv.material_MaterialNumber || '–';
+  document.getElementById('dp-plant').textContent = inv.plant_PlantCode || '–';
+
+  // Fetch containers for this spec
+  try {
+    const cr = await fetch(`${ODATA}/Containers?$filter=spec_SpecNumber eq '${spec.SpecNumber||inv.spec_SpecNumber}' and plant_PlantCode eq '${inv.plant_PlantCode}'&$select=ContainerID,lab_LabCode,RemainingQuantity,UoM,Status`);
+    const cd = await cr.json();
+    const conts = (cd.value||[]).filter(c => c.Status !== 'Disposed');
+    document.getElementById('dp-containers').innerHTML = conts.length
+      ? conts.map(c => `<tr>
+          <td>${c.lab_LabCode||''}</td>
+          <td>${c.ContainerID}</td>
+          <td class="text-right">${(c.RemainingQuantity||0).toLocaleString()}</td>
+          <td>${c.UoM||'KG'}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="4" class="table-empty">No containers</td></tr>';
+  } catch(e) { document.getElementById('dp-containers').innerHTML = '<tr><td colspan="4" class="table-empty">–</td></tr>'; }
+
+  // Stock orders
+  const orders = inv.stockOrders || [];
+  document.getElementById('dp-orders').innerHTML = orders.length
+    ? orders.map(o => {
+        const sBadge = o.Status === 'Received'  ? `<span class="badge badge-green">✓ Received</span>`
+                     : o.Status === 'In Transit' ? `<span class="badge badge-orange">→ In Transit</span>`
+                     : `<span class="badge badge-orange">⏳ Pending</span>`;
+        const label = o.OrderType === 'TO' ? 'Stock Transfer' : 'Purchase Order';
+        return `<tr>
+          <td>${label}</td>
+          <td>${o.OrderNumber||''}</td>
+          <td class="text-right">${(o.RequestedQty||0).toLocaleString()}</td>
+          <td>${o.UoM||'KG'}</td>
+          <td>${sBadge}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="5" class="table-empty">No stock orders</td></tr>';
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  if (selectedIdx !== null) { document.getElementById(`tr-${selectedIdx}`)?.classList.remove('selected'); selectedIdx = null; }
+}
+
+function applyFilter() {
+  const fS  = document.getElementById('f-spec').value.trim().toUpperCase();
+  const fSD = document.getElementById('f-specdesc').value.trim().toUpperCase();
+  const fM  = document.getElementById('f-mat').value.trim().toUpperCase();
+  const fP  = document.getElementById('f-plant').value;
+  const filtered = allRows.filter(inv => {
+    const spec = inv.spec || {}; const mat = inv.material || {};
+    return (!fS  || (spec.SpecNumber||inv.spec_SpecNumber||'').includes(fS))
+        && (!fSD || (spec.Description||'').toUpperCase().includes(fSD))
+        && (!fM  || (mat.MaterialNumber||inv.material_MaterialNumber||'').includes(fM))
+        && (!fP  || inv.plant_PlantCode === fP);
+  });
+  render(filtered); closeDetail();
+}
+
+function clearFilters() {
+  ['f-spec','f-specdesc','f-mat'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('f-plant').value='';
+  render(allRows); closeDetail();
+}
+
+function toggleAll(cb) { document.querySelectorAll('.row-cb').forEach(c => c.checked = cb.checked); }
+function sort(key) { allRows.sort((a,b) => ((a.spec?.[key]||a[key]||'')).localeCompare((b.spec?.[key]||b[key]||''))); render(allRows); }
+
+function openRequestStock(type) {
+  currentOrderType = type;
+  const isTO = type === 'TO';
+  document.getElementById('modal-title').textContent = isTO ? 'Request Stock: Stock Transfer' : 'Request Stock: Purchase Order';
+  document.getElementById('modal-label').textContent = isTO ? 'Transfer Order Number' : 'Purchase Order Number';
+  document.getElementById('m-order-num').value = '';
+  document.getElementById('m-qty').value = '';
+  document.getElementById('stock-modal').classList.add('open');
+}
+function closeStockModal() { document.getElementById('stock-modal').classList.remove('open'); }
+
+async function submitStockRequest() {
+  if (!selectedInv) { showToast('Select an inventory item first', 'info'); closeStockModal(); return; }
+  const orderNum = document.getElementById('m-order-num').value.trim();
+  const qty = parseFloat(document.getElementById('m-qty').value) || 0;
+  if (!orderNum) { showToast('Order number is required', 'error'); return; }
+  if (qty <= 0)  { showToast('Enter a valid quantity', 'error'); return; }
+  try {
+    const r = await fetch(`${ODATA}/requestStock`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ inventoryID: selectedInv.ID, orderType: currentOrderType, orderNumber: orderNum, qty })
+    });
+    if (r.ok) { closeStockModal(); showToast(`Stock request ${orderNum} submitted`, 'success'); load(); }
+    else { showToast('Error submitting request', 'error'); }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3000);
+}
+
+load();
+</script>
+</body>
+</html>

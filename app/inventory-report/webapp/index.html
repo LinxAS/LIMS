@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Inventory Report – LIMS</title>
+  <link rel="stylesheet" href="/shared/lims.css"/>
+  <script src="/shared/lims.js"></script>
+</head>
+<body>
+
+<nav class="lims-nav">
+  <span class="breadcrumb"><span class="nav-icon">📊</span> LIMS – Inventory Report</span>
+  <a class="back-link" href="/launchpad.html">🏠 Back to Launchpad</a>
+</nav>
+
+<div class="lims-page">
+
+  <!-- Filter -->
+  <div class="lims-filter">
+    <h2>Filter Report</h2>
+    <div class="form-grid">
+      <div class="field"><label>Specification</label><input id="f-spec" placeholder="Spec number"/></div>
+      <div class="field"><label>Material</label><input id="f-mat" placeholder="Material number"/></div>
+      <div class="field"><label>Plant</label>
+        <select id="f-plant">
+          <option value="">All Plants</option>
+          <option value="NAIS">NAIS</option>
+          <option value="NAIT">NAIT</option>
+        </select>
+      </div>
+      <div class="field"><label>Parent Container</label><input id="f-cont" placeholder="Container ID"/></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Laboratory</label>
+        <select id="f-lab">
+          <option value="">All Labs</option>
+          <option value="BODY DEVELOPMENT">Body Development</option>
+          <option value="HP LAB">HP Lab</option>
+          <option value="HP PILOT LAB">HP Pilot Lab</option>
+        </select>
+      </div>
+      <div class="field"><label>Dispensed By</label><input id="f-dispensed-by" placeholder="User ID"/></div>
+      <div class="field"><label>Requisition ID</label><input id="f-req" placeholder="e.g. REQ-1001"/></div>
+      <div class="field" style="flex-direction:row;align-items:flex-end;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="clearFilters()">✕ Clear Filters</button>
+        <button class="btn btn-primary" onclick="applyFilter()">GO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="table-toolbar">
+    <span id="row-count" style="font-size:12px;color:#666;margin-right:auto"></span>
+    <button class="btn-icon export-btn" title="Export to Excel" data-table="main-table" data-filename="Inventory_Report.csv"></button>
+  </div>
+
+  <!-- Table -->
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;overflow:hidden">
+    <div class="table-wrapper">
+      <table class="lims-table" id="main-table" style="table-layout:fixed;width:100%">
+        <colgroup>
+          <col style="width:8%"/>
+          <col style="width:14%"/>
+          <col style="width:8%"/>
+          <col style="width:4%"/>
+          <col style="width:8.5%"/>
+          <col style="width:7.5%"/>
+          <col style="width:6%"/>
+          <col style="width:7%"/>
+          <col style="width:8.5%"/>
+          <col style="width:7%"/>
+          <col style="width:7%"/>
+          <col style="width:7%"/>
+          <col style="width:10%"/>
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Spec Number</th>
+            <th>Spec Description</th>
+            <th>Material Number</th>
+            <th>Plant</th>
+            <th class="sortable" onclick="sort('ContainerID')">Parent Container ↕</th>
+            <th>Container Status</th>
+            <th>Created By</th>
+            <th>Created On</th>
+            <th>Child Container</th>
+            <th>Dispensed By</th>
+            <th>Dispensed On</th>
+            <th>Requisition ID</th>
+            <th>Laboratory</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ODATA = '/odata/v4/lims';
+let allRows = [];
+
+async function load() {
+  try {
+    // Load containers (parent records) joined with dispensing records
+    const cr = await fetch(
+      `${ODATA}/Containers?$expand=spec($select=SpecNumber,Description),material($select=MaterialNumber),dispensingDetails($expand=reqItem($select=requisition_RequisitionID))&$orderby=ContainerID`
+    );
+    const cd = await cr.json();
+    const containers = cd.value || [];
+
+    // Flatten: one row per container (even if no dispensing), plus extra rows for each dispensing record
+    allRows = [];
+    containers.forEach(c => {
+      const spec  = c.spec || {};
+      const mat   = c.material || {};
+      const disps = c.dispensingDetails || [];
+
+      if (disps.length === 0) {
+        allRows.push({
+          specNum   : spec.SpecNumber || '',
+          specDesc  : spec.Description || '',
+          matNum    : mat.MaterialNumber || '',
+          plant     : c.plant_PlantCode || '',
+          contID    : c.ContainerID,
+          status    : c.Status,
+          createdBy : c.Owner || '',
+          createdOn : '',
+          childCont : '',
+          dispensedBy: '',
+          dispensedOn: '',
+          reqID     : '',
+          lab       : c.lab_LabCode || ''
+        });
+      } else {
+        disps.forEach(d => {
+          allRows.push({
+            specNum   : spec.SpecNumber || '',
+            specDesc  : spec.Description || '',
+            matNum    : mat.MaterialNumber || '',
+            plant     : c.plant_PlantCode || '',
+            contID    : c.ContainerID,
+            status    : c.Status,
+            createdBy : c.Owner || '',
+            createdOn : '',
+            childCont : d.ChildContainerID || '',
+            dispensedBy: d.DispensedBy || '',
+            dispensedOn: d.DispensingDate || '',
+            reqID     : d.reqItem?.requisition_RequisitionID || '',
+            lab       : c.lab_LabCode || ''
+          });
+        });
+      }
+    });
+
+    render(allRows);
+    makeResizable('main-table');
+  } catch(e) {
+    console.error(e);
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="13" class="table-empty">Failed to load data</td></tr>`;
+  }
+}
+
+function statusBadge(s) {
+  return s === 'Available'
+    ? '<span class="badge badge-green">● Available</span>'
+    : '<span class="badge badge-red">✕ Disposed</span>';
+}
+
+function render(rows) {
+  document.getElementById('row-count').textContent = `${rows.length} record(s)`;
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="13" class="table-empty">No records found.</td></tr>`; return; }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="fw600">${r.specNum}</td>
+      <td>${r.specDesc}</td>
+      <td>${r.matNum}</td>
+      <td>${r.plant}</td>
+      <td class="fw600">${r.contID}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td>${r.createdBy}</td>
+      <td>${r.createdOn}</td>
+      <td>${r.childCont}</td>
+      <td>${r.dispensedBy}</td>
+      <td>${r.dispensedOn}</td>
+      <td>${r.reqID}</td>
+      <td>${r.lab}</td>
+    </tr>
+  `).join('');
+}
+
+function applyFilter() {
+  const fS  = document.getElementById('f-spec').value.trim().toUpperCase();
+  const fM  = document.getElementById('f-mat').value.trim().toUpperCase();
+  const fP  = document.getElementById('f-plant').value;
+  const fC  = document.getElementById('f-cont').value.trim().toUpperCase();
+  const fL  = document.getElementById('f-lab').value;
+  const fDB = document.getElementById('f-dispensed-by').value.trim().toUpperCase();
+  const fR  = document.getElementById('f-req').value.trim().toUpperCase();
+
+  render(allRows.filter(r =>
+    (!fS  || r.specNum.includes(fS))
+ && (!fM  || r.matNum.includes(fM))
+ && (!fP  || r.plant === fP)
+ && (!fC  || r.contID.includes(fC))
+ && (!fL  || r.lab === fL)
+ && (!fDB || r.dispensedBy.toUpperCase().includes(fDB))
+ && (!fR  || r.reqID.toUpperCase().includes(fR))
+  ));
+}
+
+function clearFilters() {
+  ['f-spec','f-mat','f-cont','f-dispensed-by','f-req'].forEach(id => document.getElementById(id).value='');
+  ['f-plant','f-lab'].forEach(id => document.getElementById(id).value='');
+  render(allRows);
+}
+
+function sort(key) {
+  allRows.sort((a,b) => (a.contID||'').localeCompare(b.contID||''));
+  render(allRows);
+}
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3000);
+}
+
+load();
+</script>
+</body>
+</html>

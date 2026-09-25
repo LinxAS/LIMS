@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LIMS Launchpad</title>
+  <link rel="stylesheet" href="/shared/lims.css" />
+  <style>
+    body { background: #f0f4f8; }
+
+    .lp-header {
+      background: #fff;
+      border-bottom: 1px solid #d9d9d9;
+      padding: 10px 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .lp-header .icon { font-size: 20px; color: #0a6ed1; }
+    .lp-header .title { font-size: 14px; font-weight: 600; color: #1b2a4a; }
+
+    .lp-body { padding: 32px 28px; width: 100%; }
+
+    .lp-section {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 22px 24px 28px;
+      margin-bottom: 24px;
+    }
+    .lp-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #6a6d70;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+
+    .tile {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 20px 16px 16px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      transition: box-shadow 0.15s, border-color 0.15s;
+      min-height: 120px;
+    }
+    .tile:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      border-color: #0a6ed1;
+    }
+    .tile .tile-icon {
+      font-size: 28px;
+      line-height: 1;
+    }
+    .tile .tile-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1b2a4a;
+      line-height: 1.3;
+    }
+    .tile .tile-sub {
+      font-size: 11.5px;
+      color: #6a6d70;
+      line-height: 1.3;
+    }
+
+    .section-us .tile { border-top: 3px solid #0a6ed1; }
+  </style>
+</head>
+<body>
+
+<div class="lp-header">
+  <span class="icon">🔬</span>
+  <span class="title">LIMS Launchpad</span>
+</div>
+
+<div class="lp-body">
+
+  <!-- US Section -->
+  <div class="lp-section section-us">
+    <div class="lp-section-title">Requisitions &amp; Inventory</div>
+    <div class="tile-grid">
+      <a class="tile" href="/manage-requisitions/webapp/index.html">
+        <span class="tile-icon">📋</span>
+        <span class="tile-title">Manage Requisitions</span>
+        <span class="tile-sub">View and approve lab requisitions</span>
+      </a>
+      <a class="tile" href="/create-requisition/webapp/index.html">
+        <span class="tile-icon">📄</span>
+        <span class="tile-title">Create Requisition</span>
+        <span class="tile-sub">Submit a new lab material requisition</span>
+      </a>
+      <a class="tile" href="/manage-inventory/webapp/index.html">
+        <span class="tile-icon">🗃️</span>
+        <span class="tile-title">Manage Inventory</span>
+        <span class="tile-sub">Track material stock levels</span>
+      </a>
+      <a class="tile" href="/manage-containers/webapp/index.html">
+        <span class="tile-icon">📦</span>
+        <span class="tile-title">Manage Containers</span>
+        <span class="tile-sub">Physical container tracking</span>
+      </a>
+      <a class="tile" href="/inventory-report/webapp/index.html">
+        <span class="tile-icon">📊</span>
+        <span class="tile-title">Inventory Report</span>
+        <span class="tile-sub">Stock analytics &amp; reporting</span>
+      </a>
+    </div>
+  </div>
+
+
+</div>
+</body>
+</html>

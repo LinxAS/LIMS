@@ -1,0 +1,11 @@
+RequisitionID,RequisitionName,RequestedFor,NeededBy,plant_PlantCode,lab_LabCode,Category,Status,CreatedBy,CreatedOn
+REQ-1001,Q4 Body Lotion Development,JJOSEPH,2026-10-15,NAIS,BODY DEVELOPMENT,Raw Material,Submitted,JJOSEPH,2026-09-01
+REQ-1002,HP Shampoo Base Testing,DWONG,2026-10-20,NAIT,HP LAB,Raw Material,Approved,DWONG,2026-09-03
+REQ-1003,Fragrance Trial Batch,AMISTRY,2026-10-05,NAIS,BODY DEVELOPMENT,Fragrance,Draft,AMISTRY,2026-09-05
+REQ-1004,Conditioner Pilot Run,DWONG,2026-11-01,NAIT,HP PILOT LAB,Raw Material,Submitted,DWONG,2026-09-07
+REQ-1005,Skin Serum Prototype,JJOSEPH,2026-10-28,NAIS,BODY DEVELOPMENT,Raw Material,Approved,JJOSEPH,2026-09-08
+REQ-1006,Color Cosmetics Batch,AMISTRY,2026-11-10,NAIS,BODY DEVELOPMENT,Raw Material,Draft,AMISTRY,2026-09-10
+REQ-1007,Anti-Dandruff Formula,DWONG,2026-10-30,NAIT,HP LAB,Raw Material,Submitted,DWONG,2026-09-11
+REQ-1008,Moisturiser Stability Test,JJOSEPH,2026-11-15,NAIS,BODY DEVELOPMENT,Raw Material,Approved,JJOSEPH,2026-09-12
+REQ-1009,Sunscreen SPF50 Trial,AMISTRY,2026-11-20,NAIT,HP PILOT LAB,Raw Material,Draft,AMISTRY,2026-09-14
+REQ-1010,Foundation Colour Match,DWONG,2026-12-01,NAIS,BODY DEVELOPMENT,Raw Material,Submitted,DWONG,2026-09-15

@@ -1,0 +1,3 @@
+ForecastID,ForecastName,RequestedFor,NeededBy,plant_PlantCode,lab_LabCode,Category,Status,CreatedBy,DateSubmitted
+FOR-1001,Q4 2026 HP Shampoo Forecast,DWONG,2026-11-30,NAIT,HP LAB,Raw Material,Submitted,DWONG,2026-09-05
+FOR-1002,Q1 2027 Body Care Planning,JJOSEPH,2026-12-15,NAIS,BODY DEVELOPMENT,Raw Material,Draft,JJOSEPH,
