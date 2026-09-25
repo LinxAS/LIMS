@@ -12,16 +12,21 @@ cds.on('bootstrap', (app) => {
 if (require.main === module) {
   const PORT = process.env.PORT || 4004;
 
-  // Replicate what cds_server() does: create app, set cds.app, fire bootstrap
-  const app = cds.app = express();
-  cds.emit('bootstrap', app);  // triggers our listener above
+  // Replicate what cds_server() does: create app, set cds.app, fire bootstrap,
+  // connect to db, then serve all services
+  (async () => {
+    const app = cds.app = express();
+    cds.emit('bootstrap', app);  // triggers our listener above
 
-  cds.serve('all').in(app).then(() => {
+    if (cds.requires.db) await cds.connect.to('db');
+
+    await cds.serve('all').in(app);
+
     app.listen(PORT, () => {
       console.log(`LIMS server listening on http://localhost:${PORT}`);
       console.log(`Launchpad: http://localhost:${PORT}/launchpad.html`);
     });
-  });
+  })();
 }
 
 module.exports = cds.server;
