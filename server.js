@@ -1,20 +1,19 @@
 'use strict';
-const cds = require('@sap/cds');
+const cds     = require('@sap/cds');
+const express = require('express');
 
-// Serve static files from /app when CDS bootstraps
+// Static files + root redirect — works for both cds watch and node server.js
 cds.on('bootstrap', (app) => {
-  const express = require('express');
   app.use(express.static(__dirname + '/app'));
   app.get('/', (_req, res) => res.redirect('/launchpad.html'));
 });
 
-// When run directly (node server.js) start the server ourselves
+// When run directly: node server.js
 if (require.main === module) {
   const PORT = process.env.PORT || 4004;
-  const express = require('express');
-  const app = express();
-  cds.serve('all').in(app).then(() => {
-    app.listen(PORT, () => {
+  // cds.serve() fires bootstrap on cds.app, then we listen on cds.app
+  cds.serve('all').then(() => {
+    cds.app.listen(PORT, () => {
       console.log(`LIMS server listening on http://localhost:${PORT}`);
       console.log(`Launchpad: http://localhost:${PORT}/launchpad.html`);
     });
