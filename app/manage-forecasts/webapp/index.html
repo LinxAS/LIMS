@@ -52,7 +52,7 @@
   <!-- Toolbar -->
   <div class="table-toolbar">
     <span id="row-count" style="font-size:12px;color:#666;margin-right:auto"></span>
-    <a href="/manage-forecasts/webapp/create.html" class="btn btn-secondary">＋ Create Forecast</a>
+    <a href="create.html" class="btn btn-secondary">＋ Create Forecast</a>
     <button class="btn btn-secondary" onclick="editForecast()">✏ Edit Forecast</button>
     <button class="btn btn-secondary" onclick="openRequestStock()">📦 Request Stock</button>
     <button class="btn-icon export-btn" title="Export to Excel" data-table="main-table" data-filename="Manage_Forecasts.csv"></button>
@@ -244,7 +244,7 @@ function sort(key) { allRows.sort((a,b) => ((a.forecast?.ForecastID||'')).locale
 function editForecast() {
   if (selectedIdx === null) { showToast('Select a forecast item first', 'info'); return; }
   const fc = allRows[selectedIdx]?.forecast;
-  if (fc) window.location.href = `/manage-forecasts/webapp/create.html?edit=${fc.ForecastID}`;
+  if (fc) window.location.href = `create.html?edit=${fc.ForecastID}`;
 }
 
 function openRequestStock() { document.getElementById('stock-modal').classList.add('open'); }
