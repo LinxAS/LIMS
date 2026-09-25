@@ -352,43 +352,66 @@ let dispensedMap = {};   // reqItemID → total qty dispensed
 // ── Load data ──────────────────────────────────────────────
 async function load() {
   try {
-    const [r, dr] = await Promise.all([
-      fetch(
-        `${ODATA}/RequisitionItems` +
-        `?$expand=requisition($select=RequisitionID,RequisitionName,Status,plant_PlantCode,lab_LabCode,` +
-                              `NeededBy,RequestedFor,CreatedBy,CreatedOn,Category),` +
-        `spec($select=SpecNumber,Description,IsZRawMat,IsZFrag),` +
-        `material($select=MaterialNumber,Description)` +
-        `&$orderby=requisition_RequisitionID,ItemNumber`
-      ),
-      fetch(`${ODATA}/DispensingRecords?$select=reqItem_ID,QtyIssued`)
+    // Fetch all entities separately (no $expand/$select) and join client-side
+    const [itemsRes, reqsRes, specsRes, matsRes, drRes, contsRes] = await Promise.all([
+      fetch(`${ODATA}/RequisitionItems`),
+      fetch(`${ODATA}/Requisitions`),
+      fetch(`${ODATA}/Specifications`),
+      fetch(`${ODATA}/Materials`),
+      fetch(`${ODATA}/DispensingRecords`),
+      fetch(`${ODATA}/Containers`)
     ]);
-    const d  = await r.json();
-    const dd = await dr.json();
+    const [itemsD, reqsD, specsD, matsD, drD, contsD] = await Promise.all([
+      itemsRes.json(), reqsRes.json(), specsRes.json(),
+      matsRes.json(), drRes.json(), contsRes.json()
+    ]);
 
-    // Build map: reqItemID → total dispensed qty
+    // Build lookup maps
+    const reqMap  = {};
+    for (const r of (reqsD.value  || [])) reqMap[r.RequisitionID]    = r;
+    const specMap = {};
+    for (const s of (specsD.value || [])) specMap[s.SpecNumber]       = s;
+    const matMap  = {};
+    for (const m of (matsD.value  || [])) matMap[m.MaterialNumber]    = m;
+
+    // Build dispensed map: reqItemID → total qty dispensed
     dispensedMap = {};
-    for (const rec of (dd.value || [])) {
+    for (const rec of (drD.value  || [])) {
       dispensedMap[rec.reqItem_ID] = (dispensedMap[rec.reqItem_ID] || 0) + (rec.QtyIssued || 0);
     }
 
-    allRows = d.value || [];
-    render(allRows);
+    // Enrich items with joined data
+    const items = (itemsD.value || []).map(item => ({
+      ...item,
+      requisition : reqMap[item.requisition_RequisitionID] || {},
+      spec        : specMap[item.spec_SpecNumber]          || {},
+      material    : matMap[item.material_MaterialNumber]   || {}
+    }));
 
+    // Sort client-side
+    items.sort((a, b) => {
+      const ra = a.requisition_RequisitionID || '', rb = b.requisition_RequisitionID || '';
+      return ra < rb ? -1 : ra > rb ? 1 : (a.ItemNumber || 0) - (b.ItemNumber || 0);
+    });
+
+    allRows = items;
+    render(allRows);
     makeResizable('main-table');
 
-    // Also load containers for dispense datalist
-    const cr = await fetch(`${ODATA}/Containers?$select=ContainerID,Status&$filter=Status eq 'Available'`);
-    const cd = await cr.json();
+    // Populate container datalist (filter Available client-side)
     const dl = document.getElementById('d-cont-list');
-    (cd.value || []).forEach(c => {
-      const o = document.createElement('option');
-      o.value = c.ContainerID;
-      dl.appendChild(o);
-    });
+    dl.innerHTML = '';
+    for (const c of (contsD.value || [])) {
+      if (c.Status === 'Available') {
+        const o = document.createElement('option');
+        o.value = c.ContainerID;
+        dl.appendChild(o);
+      }
+    }
   } catch(e) {
+    console.error('load() error:', e);
     document.getElementById('tbody').innerHTML =
-      `<tr><td colspan="18" class="table-empty">Failed to load data. Is the server running?</td></tr>`;
+      `<tr><td colspan="18" class="table-empty">Failed to load data: ${e.message}</td></tr>`;
   }
 }
 

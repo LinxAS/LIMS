@@ -137,11 +137,33 @@ let allRows = [];
 
 async function load() {
   try {
-    const r = await fetch(
-      `${ODATA}/ForecastItems?$expand=forecast($select=ForecastID,Status,DateSubmitted,NeededBy,CreatedBy),spec($select=SpecNumber,Description),material($select=MaterialNumber,Description)&$orderby=forecast_ForecastID,ItemNumber`
-    );
-    const d = await r.json();
-    allRows = d.value || [];
+    // Fetch all entities separately (no $expand) and join client-side
+    const [fir, fr, sr, mr] = await Promise.all([
+      fetch(`${ODATA}/ForecastItems`),
+      fetch(`${ODATA}/Forecasts`),
+      fetch(`${ODATA}/Specifications`),
+      fetch(`${ODATA}/Materials`)
+    ]);
+    const [fid, fd, sd, md] = await Promise.all([fir.json(), fr.json(), sr.json(), mr.json()]);
+
+    const fcMap = {};
+    for (const f of (fd.value || [])) fcMap[f.ForecastID] = f;
+    const specMap = {};
+    for (const s of (sd.value || [])) specMap[s.SpecNumber] = s;
+    const matMap = {};
+    for (const m of (md.value || [])) matMap[m.MaterialNumber] = m;
+
+    allRows = (fid.value || []).map(item => ({
+      ...item,
+      forecast : fcMap[item.forecast_ForecastID]   || {},
+      spec     : specMap[item.spec_SpecNumber]      || {},
+      material : matMap[item.material_MaterialNumber]|| {}
+    }));
+    allRows.sort((a, b) => {
+      const fa = a.forecast_ForecastID||'', fb = b.forecast_ForecastID||'';
+      return fa < fb ? -1 : fa > fb ? 1 : (a.ItemNumber||0) - (b.ItemNumber||0);
+    });
+
     render(allRows);
     makeResizable('main-table');
   } catch(e) {

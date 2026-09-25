@@ -180,9 +180,33 @@ let selectedInv = null;
 
 async function load() {
   try {
-    const r = await fetch(`${ODATA}/Inventory?$expand=spec($select=SpecNumber,Description),material($select=MaterialNumber,Description),plant,stockOrders&$orderby=spec_SpecNumber`);
-    const d = await r.json();
-    allRows = d.value || [];
+    // Fetch all entities separately (no $expand) and join client-side
+    const [ir, sr, mr, sor] = await Promise.all([
+      fetch(`${ODATA}/Inventory`),
+      fetch(`${ODATA}/Specifications`),
+      fetch(`${ODATA}/Materials`),
+      fetch(`${ODATA}/StockOrders`)
+    ]);
+    const [id2, sd, md, sod] = await Promise.all([ir.json(), sr.json(), mr.json(), sor.json()]);
+
+    const specMap = {};
+    for (const s of (sd.value || [])) specMap[s.SpecNumber] = s;
+    const matMap = {};
+    for (const m of (md.value || [])) matMap[m.MaterialNumber] = m;
+    const ordMap = {};
+    for (const o of (sod.value || [])) {
+      if (!ordMap[o.inventory_ID]) ordMap[o.inventory_ID] = [];
+      ordMap[o.inventory_ID].push(o);
+    }
+
+    allRows = (id2.value || []).map(inv => ({
+      ...inv,
+      spec        : specMap[inv.spec_SpecNumber]       || {},
+      material    : matMap[inv.material_MaterialNumber] || {},
+      stockOrders : ordMap[inv.ID]                      || []
+    }));
+    allRows.sort((a, b) => (a.spec_SpecNumber||'') < (b.spec_SpecNumber||'') ? -1 : 1);
+
     render(allRows);
     makeResizable('main-table');
   } catch(e) {

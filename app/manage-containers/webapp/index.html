@@ -400,15 +400,45 @@ let selectedContainer = null;
 let specs = [];
 
 async function load() {
-  const [cr, sr] = await Promise.all([
-    fetch(`${ODATA}/Containers?$expand=spec($select=SpecNumber,Description),material($select=MaterialNumber,Description),dispensingDetails&$orderby=ContainerID`),
-    fetch(`${ODATA}/Specifications?$expand=material($select=MaterialNumber)&$orderby=SpecNumber`)
+  // Fetch all entities separately (no $expand) and join client-side
+  const [cr, sr, mr, dr] = await Promise.all([
+    fetch(`${ODATA}/Containers`),
+    fetch(`${ODATA}/Specifications`),
+    fetch(`${ODATA}/Materials`),
+    fetch(`${ODATA}/DispensingRecords`)
   ]);
-  const cd = await cr.json(); allRows = cd.value || [];
-  const sd = await sr.json(); specs = sd.value || [];
+  const [cd, sd, md, dd] = await Promise.all([cr.json(), sr.json(), mr.json(), dr.json()]);
+
+  // Build lookup maps
+  const specMap = {};
+  for (const s of (sd.value || [])) specMap[s.SpecNumber] = s;
+  const matMap = {};
+  for (const m of (md.value || [])) matMap[m.MaterialNumber] = m;
+  const dispMap = {};
+  for (const d of (dd.value || [])) {
+    const cid = d.container_ContainerID;
+    if (!dispMap[cid]) dispMap[cid] = [];
+    dispMap[cid].push(d);
+  }
+
+  // Enrich containers
+  allRows = (cd.value || []).map(c => ({
+    ...c,
+    spec              : specMap[c.spec_SpecNumber]       || {},
+    material          : matMap[c.material_MaterialNumber] || {},
+    dispensingDetails : dispMap[c.ContainerID]            || []
+  }));
+  allRows.sort((a, b) => a.ContainerID < b.ContainerID ? -1 : 1);
+
+  // Enrich specs with material for dropdowns
+  specs = (sd.value || []).map(s => ({ ...s, material: matMap[s.material_MaterialNumber] || {} }));
+  specs.sort((a, b) => a.SpecNumber < b.SpecNumber ? -1 : 1);
+
   makeResizable('main-table');
+
   // Populate spec datalist in create modal
   const dl = document.getElementById('m-spec-list');
+  dl.innerHTML = '';
   specs.forEach(s => { const o = document.createElement('option'); o.value = s.SpecNumber; o.textContent = `${s.SpecNumber} – ${s.Description||''}`; dl.appendChild(o); });
   document.getElementById('m-spec').addEventListener('change', function() {
     const sp = specs.find(s => s.SpecNumber === this.value);

@@ -112,11 +112,26 @@ const ODATA = '/odata/v4/lims';
 let itemCounter = 0;
 let specs = [];
 
+let inventoryAll = [];   // all inventory rows for client-side lookup
+
 async function init() {
-  // Load specs for search
-  const r = await fetch(`${ODATA}/Specifications?$expand=material($select=MaterialNumber,Description)&$orderby=SpecNumber`);
-  const d = await r.json();
-  specs = d.value || [];
+  // Fetch specs and materials separately (no $expand)
+  const [sr, mr, ir] = await Promise.all([
+    fetch(`${ODATA}/Specifications`),
+    fetch(`${ODATA}/Materials`),
+    fetch(`${ODATA}/Inventory`)
+  ]);
+  const [sd, md, id2] = await Promise.all([sr.json(), mr.json(), ir.json()]);
+
+  const matMap = {};
+  for (const m of (md.value || [])) matMap[m.MaterialNumber] = m;
+
+  // Enrich specs with material
+  specs = (sd.value || []).map(s => ({ ...s, material: matMap[s.material_MaterialNumber] || {} }));
+  specs.sort((a, b) => a.SpecNumber < b.SpecNumber ? -1 : 1);
+
+  inventoryAll = id2.value || [];
+
   // Start with 3 blank rows
   addItemRow(); addItemRow(); addItemRow();
 }
@@ -169,15 +184,9 @@ async function onSpecChange(input, rowId) {
     row.querySelector('.spec-desc').value = spec.Description || '';
     row.querySelector('.mat-num').value  = spec.material_MaterialNumber || '';
     row.querySelector('.mat-desc').value = spec.material?.Description || '';
-    // Fetch available qty
-    try {
-      const r = await fetch(`${ODATA}/Inventory?$filter=spec_SpecNumber eq '${specNum}'`);
-      const d = await r.json();
-      const inv = d.value?.[0];
-      row.querySelector('.avail-qty').value = inv ? inv.TotalAvailable : 0;
-    } catch(e) {
-      row.querySelector('.avail-qty').value = 0;
-    }
+    // Look up available qty client-side (inventoryAll already loaded)
+    const inv = inventoryAll.find(i => i.spec_SpecNumber === specNum);
+    row.querySelector('.avail-qty').value = inv ? (inv.TotalAvailable || 0) : 0;
   }
 }
 

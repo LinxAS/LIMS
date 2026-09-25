@@ -106,56 +106,64 @@ let allRows = [];
 
 async function load() {
   try {
-    // Load containers (parent records) joined with dispensing records
-    const cr = await fetch(
-      `${ODATA}/Containers?$expand=spec($select=SpecNumber,Description),material($select=MaterialNumber),dispensingDetails($expand=reqItem($select=requisition_RequisitionID))&$orderby=ContainerID`
-    );
-    const cd = await cr.json();
-    const containers = cd.value || [];
+    // Fetch all entities separately (no $expand) and join client-side
+    const [cr, sr, mr, dr, rir] = await Promise.all([
+      fetch(`${ODATA}/Containers`),
+      fetch(`${ODATA}/Specifications`),
+      fetch(`${ODATA}/Materials`),
+      fetch(`${ODATA}/DispensingRecords`),
+      fetch(`${ODATA}/RequisitionItems`)
+    ]);
+    const [cd, sd, md, dd, rid] = await Promise.all([
+      cr.json(), sr.json(), mr.json(), dr.json(), rir.json()
+    ]);
 
-    // Flatten: one row per container (even if no dispensing), plus extra rows for each dispensing record
+    const specMap = {};
+    for (const s of (sd.value || [])) specMap[s.SpecNumber] = s;
+    const matMap = {};
+    for (const m of (md.value || [])) matMap[m.MaterialNumber] = m;
+    const reqItemMap = {};
+    for (const ri of (rid.value || [])) reqItemMap[ri.ID] = ri;
+    const dispMap = {};
+    for (const d of (dd.value || [])) {
+      const cid = d.container_ContainerID;
+      if (!dispMap[cid]) dispMap[cid] = [];
+      dispMap[cid].push(d);
+    }
+
+    // Flatten: one row per container (no dispensing) or per dispensing record
     allRows = [];
-    containers.forEach(c => {
-      const spec  = c.spec || {};
-      const mat   = c.material || {};
-      const disps = c.dispensingDetails || [];
-
+    for (const c of (cd.value || [])) {
+      const spec  = specMap[c.spec_SpecNumber]       || {};
+      const mat   = matMap[c.material_MaterialNumber] || {};
+      const disps = dispMap[c.ContainerID]            || [];
+      const base  = {
+        specNum    : spec.SpecNumber    || c.spec_SpecNumber       || '',
+        specDesc   : spec.Description  || '',
+        matNum     : mat.MaterialNumber || c.material_MaterialNumber|| '',
+        plant      : c.plant_PlantCode || '',
+        contID     : c.ContainerID,
+        status     : c.Status,
+        createdBy  : c.Owner || '',
+        createdOn  : '',
+        lab        : c.lab_LabCode || ''
+      };
       if (disps.length === 0) {
-        allRows.push({
-          specNum   : spec.SpecNumber || '',
-          specDesc  : spec.Description || '',
-          matNum    : mat.MaterialNumber || '',
-          plant     : c.plant_PlantCode || '',
-          contID    : c.ContainerID,
-          status    : c.Status,
-          createdBy : c.Owner || '',
-          createdOn : '',
-          childCont : '',
-          dispensedBy: '',
-          dispensedOn: '',
-          reqID     : '',
-          lab       : c.lab_LabCode || ''
-        });
+        allRows.push({ ...base, childCont: '', dispensedBy: '', dispensedOn: '', reqID: '' });
       } else {
-        disps.forEach(d => {
+        for (const d of disps) {
+          const ri = reqItemMap[d.reqItem_ID] || {};
           allRows.push({
-            specNum   : spec.SpecNumber || '',
-            specDesc  : spec.Description || '',
-            matNum    : mat.MaterialNumber || '',
-            plant     : c.plant_PlantCode || '',
-            contID    : c.ContainerID,
-            status    : c.Status,
-            createdBy : c.Owner || '',
-            createdOn : '',
-            childCont : d.ChildContainerID || '',
-            dispensedBy: d.DispensedBy || '',
-            dispensedOn: d.DispensingDate || '',
-            reqID     : d.reqItem?.requisition_RequisitionID || '',
-            lab       : c.lab_LabCode || ''
+            ...base,
+            childCont  : d.ChildContainerID || '',
+            dispensedBy: d.DispensedBy      || '',
+            dispensedOn: d.DispensingDate   || '',
+            reqID      : ri.requisition_RequisitionID || ''
           });
-        });
+        }
       }
-    });
+    }
+    allRows.sort((a, b) => a.contID < b.contID ? -1 : 1);
 
     render(allRows);
     makeResizable('main-table');

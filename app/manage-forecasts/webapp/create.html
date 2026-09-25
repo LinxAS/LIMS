@@ -109,10 +109,20 @@ const ODATA = '/odata/v4/lims';
 let itemCounter = 0;
 let specs = [];
 
+let inventoryAll = [];
+
 async function init() {
-  const r = await fetch(`${ODATA}/Specifications?$expand=material($select=MaterialNumber,Description)&$orderby=SpecNumber`);
-  const d = await r.json();
-  specs = d.value || [];
+  const [sr, mr, ir] = await Promise.all([
+    fetch(`${ODATA}/Specifications`),
+    fetch(`${ODATA}/Materials`),
+    fetch(`${ODATA}/Inventory`)
+  ]);
+  const [sd, md, id2] = await Promise.all([sr.json(), mr.json(), ir.json()]);
+  const matMap = {};
+  for (const m of (md.value || [])) matMap[m.MaterialNumber] = m;
+  specs = (sd.value || []).map(s => ({ ...s, material: matMap[s.material_MaterialNumber] || {} }));
+  specs.sort((a, b) => a.SpecNumber < b.SpecNumber ? -1 : 1);
+  inventoryAll = id2.value || [];
   addItemRow(); addItemRow(); addItemRow();
 }
 
@@ -157,11 +167,8 @@ async function onSpecChange(input, rowId) {
     row.querySelector('.spec-desc').value = spec.Description || '';
     row.querySelector('.mat-num').value   = spec.material_MaterialNumber || '';
     row.querySelector('.mat-desc').value  = spec.material?.Description || '';
-    try {
-      const r = await fetch(`${ODATA}/Inventory?$filter=spec_SpecNumber eq '${specNum}'`);
-      const d = await r.json();
-      row.querySelector('.avail-qty').value = d.value?.[0]?.TotalAvailable ?? 0;
-    } catch(e) { row.querySelector('.avail-qty').value = 0; }
+    const inv = inventoryAll.find(i => i.spec_SpecNumber === specNum);
+    row.querySelector('.avail-qty').value = inv ? (inv.TotalAvailable || 0) : 0;
   }
 }
 
