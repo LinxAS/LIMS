@@ -177,17 +177,20 @@ const ODATA = '/odata/v4/lims';
 let allRows = [];
 let currentOrderType = 'PO';
 let selectedInv = null;
+let containersAll = [];   // cached for selectRow container panel
 
 async function load() {
   try {
     // Fetch all entities separately (no $expand) and join client-side
-    const [ir, sr, mr, sor] = await Promise.all([
+    const [ir, sr, mr, sor, cr] = await Promise.all([
       fetch(`${ODATA}/Inventory`),
       fetch(`${ODATA}/Specifications`),
       fetch(`${ODATA}/Materials`),
-      fetch(`${ODATA}/StockOrders`)
+      fetch(`${ODATA}/StockOrders`),
+      fetch(`${ODATA}/Containers`)
     ]);
-    const [id2, sd, md, sod] = await Promise.all([ir.json(), sr.json(), mr.json(), sor.json()]);
+    const [id2, sd, md, sod, cd] = await Promise.all([ir.json(), sr.json(), mr.json(), sor.json(), cr.json()]);
+    containersAll = cd.value || [];
 
     const specMap = {};
     for (const s of (sd.value || [])) specMap[s.SpecNumber] = s;
@@ -264,20 +267,21 @@ async function selectRow(i) {
   document.getElementById('dp-mat').textContent   = mat.MaterialNumber || inv.material_MaterialNumber || '–';
   document.getElementById('dp-plant').textContent = inv.plant_PlantCode || '–';
 
-  // Fetch containers for this spec
-  try {
-    const cr = await fetch(`${ODATA}/Containers?$filter=spec_SpecNumber eq '${spec.SpecNumber||inv.spec_SpecNumber}' and plant_PlantCode eq '${inv.plant_PlantCode}'&$select=ContainerID,lab_LabCode,RemainingQuantity,UoM,Status`);
-    const cd = await cr.json();
-    const conts = (cd.value||[]).filter(c => c.Status !== 'Disposed');
-    document.getElementById('dp-containers').innerHTML = conts.length
-      ? conts.map(c => `<tr>
-          <td>${c.lab_LabCode||''}</td>
-          <td>${c.ContainerID}</td>
-          <td class="text-right">${(c.RemainingQuantity||0).toLocaleString()}</td>
-          <td>${c.UoM||'KG'}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="4" class="table-empty">No containers</td></tr>';
-  } catch(e) { document.getElementById('dp-containers').innerHTML = '<tr><td colspan="4" class="table-empty">–</td></tr>'; }
+  // Containers for this spec — filter from cached data
+  const specNum = spec.SpecNumber || inv.spec_SpecNumber || '';
+  const conts = containersAll.filter(c =>
+    c.spec_SpecNumber === specNum &&
+    c.plant_PlantCode === inv.plant_PlantCode &&
+    c.Status !== 'Disposed'
+  );
+  document.getElementById('dp-containers').innerHTML = conts.length
+    ? conts.map(c => `<tr>
+        <td>${c.lab_LabCode||''}</td>
+        <td>${c.ContainerID}</td>
+        <td class="text-right">${(c.RemainingQuantity||0).toLocaleString()}</td>
+        <td>${c.UoM||'KG'}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="4" class="table-empty">No containers</td></tr>';
 
   // Stock orders
   const orders = inv.stockOrders || [];
