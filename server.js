@@ -11,7 +11,9 @@ cds.on('bootstrap', (app) => {
 // When run directly (node server.js) start the server ourselves
 if (require.main === module) {
   const PORT = process.env.PORT || 4004;
-  cds.serve('all').in(require('express')()).then((app) => {
+  const express = require('express');
+  const app = express();
+  cds.serve('all').in(app).then(() => {
     app.listen(PORT, () => {
       console.log(`LIMS server listening on http://localhost:${PORT}`);
       console.log(`Launchpad: http://localhost:${PORT}/launchpad.html`);
