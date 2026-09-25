@@ -98,7 +98,7 @@
     </div>
     <button class="btn btn-secondary" onclick="saveForecast('Draft')">Save as Draft</button>
     <button class="btn btn-primary" onclick="saveForecast('Submitted')">Submit</button>
-    <button class="btn btn-ghost" onclick="window.location.href='/manage-forecasts/webapp/index.html'">Cancel</button>
+    <button class="btn btn-ghost" onclick="window.location.href='index.html'">Cancel</button>
   </div>
 </div>
 
@@ -225,7 +225,7 @@ async function saveForecast(status) {
     });
     if (r.ok) {
       showToast(`Forecast ${fcID} saved as ${status}`, 'success');
-      setTimeout(() => { window.location.href = '/manage-forecasts/webapp/index.html'; }, 1800);
+      setTimeout(() => { window.location.href = 'index.html'; }, 1800);
     } else {
       const err = await r.json();
       showToast(err?.error?.message || 'Error saving forecast', 'error');

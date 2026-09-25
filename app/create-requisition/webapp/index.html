@@ -101,7 +101,7 @@
     </div>
     <button class="btn btn-secondary" onclick="saveRequisition('Draft')">Save as Draft</button>
     <button class="btn btn-primary" onclick="saveRequisition('Submitted')">Submit</button>
-    <button class="btn btn-ghost" onclick="window.location.href='/manage-requisitions/webapp/index.html'">Cancel</button>
+    <button class="btn btn-ghost" onclick="window.location.href='../../manage-requisitions/webapp/index.html'">Cancel</button>
   </div>
 </div>
 
@@ -242,7 +242,7 @@ async function saveRequisition(status) {
     });
     if (r.ok) {
       showToast(`Requisition ${reqID} saved as ${status}`, 'success');
-      setTimeout(() => { window.location.href = '/manage-requisitions/webapp/index.html'; }, 1800);
+      setTimeout(() => { window.location.href = '../../manage-requisitions/webapp/index.html'; }, 1800);
     } else {
       const err = await r.json();
       showToast(err?.error?.message || 'Error saving requisition', 'error');
