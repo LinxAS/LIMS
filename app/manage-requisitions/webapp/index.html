@@ -348,22 +348,26 @@ let sortKey      = 'reqID';
 let sortDir      = 1;
 let selectedIdx  = null;
 let dispensedMap = {};   // reqItemID → total qty dispensed
+let inventoryAll = [];   // cached for selectRow lookups
+let containersAll= [];   // cached for selectRow lookups
+let dispensingAll= [];   // cached for selectRow dispensing panel
 
 // ── Load data ──────────────────────────────────────────────
 async function load() {
   try {
     // Fetch all entities separately (no $expand/$select) and join client-side
-    const [itemsRes, reqsRes, specsRes, matsRes, drRes, contsRes] = await Promise.all([
+    const [itemsRes, reqsRes, specsRes, matsRes, drRes, contsRes, invRes] = await Promise.all([
       fetch(`${ODATA}/RequisitionItems`),
       fetch(`${ODATA}/Requisitions`),
       fetch(`${ODATA}/Specifications`),
       fetch(`${ODATA}/Materials`),
       fetch(`${ODATA}/DispensingRecords`),
-      fetch(`${ODATA}/Containers`)
+      fetch(`${ODATA}/Containers`),
+      fetch(`${ODATA}/Inventory`)
     ]);
-    const [itemsD, reqsD, specsD, matsD, drD, contsD] = await Promise.all([
+    const [itemsD, reqsD, specsD, matsD, drD, contsD, invD] = await Promise.all([
       itemsRes.json(), reqsRes.json(), specsRes.json(),
-      matsRes.json(), drRes.json(), contsRes.json()
+      matsRes.json(), drRes.json(), contsRes.json(), invRes.json()
     ]);
 
     // Build lookup maps
@@ -379,6 +383,11 @@ async function load() {
     for (const rec of (drD.value  || [])) {
       dispensedMap[rec.reqItem_ID] = (dispensedMap[rec.reqItem_ID] || 0) + (rec.QtyIssued || 0);
     }
+
+    // Cache raw data for selectRow lookups
+    inventoryAll  = invD.value   || [];
+    containersAll = contsD.value || [];
+    dispensingAll = drD.value  || [];
 
     // Enrich items with joined data
     const items = (itemsD.value || []).map(item => ({
@@ -518,53 +527,35 @@ async function selectRow(i) {
   document.getElementById('dp-total-req').textContent    = (item.Quantity || 0).toLocaleString();
   document.getElementById('dp-avail-stock').textContent  = (item.AvailableQty || 0).toLocaleString();
 
-  try {
-    const specNum = spec.SpecNumber || item.spec_SpecNumber || '';
-    const plant   = req.plant_PlantCode || '';
-    if (specNum) {
-      const [invR, contR] = await Promise.all([
-        fetch(`${ODATA}/Inventory?$filter=spec_SpecNumber eq '${specNum}'`),
-        fetch(`${ODATA}/Containers?$filter=spec_SpecNumber eq '${specNum}' and Status eq 'Available'&$select=ContainerID,RemainingQuantity,lab_LabCode`)
-      ]);
-      const invD  = await invR.json();
-      const contD = await contR.json();
-      const inv   = invD.value?.[0];
-      if (inv) {
-        document.getElementById('dp-stock-plant').textContent = (inv.TotalQuantity || 0).toLocaleString();
-      } else {
-        document.getElementById('dp-stock-plant').textContent = '–';
-      }
-      const labCode = req.lab_LabCode || '';
-      const labQty  = (contD.value || [])
-        .filter(c => !labCode || c.lab_LabCode === labCode)
-        .reduce((s, c) => s + (c.RemainingQuantity || 0), 0);
-      document.getElementById('dp-stock-lab').textContent = labQty.toLocaleString();
-    }
-  } catch(e) {
-    document.getElementById('dp-stock-plant').textContent = '–';
-    document.getElementById('dp-stock-lab').textContent   = '–';
-  }
+  // Stock Details — look up from cached data
+  const specNum = spec.SpecNumber || item.spec_SpecNumber || '';
+  const labCode = req.lab_LabCode || '';
+  const inv = inventoryAll.find(i => i.spec_SpecNumber === specNum);
+  document.getElementById('dp-stock-plant').textContent = inv
+    ? (inv.TotalQuantity || 0).toLocaleString() : '–';
+  const labQty = containersAll
+    .filter(c => c.spec_SpecNumber === specNum && c.Status === 'Available' && (!labCode || c.lab_LabCode === labCode))
+    .reduce((s, c) => s + (c.RemainingQuantity || 0), 0);
+  document.getElementById('dp-stock-lab').textContent = labQty.toLocaleString();
 
-  // Dispensing Details
-  document.getElementById('dp-dispensing').innerHTML = '<tr><td colspan="7" class="table-empty">Loading…</td></tr>';
-  try {
-    const dr = await fetch(`${ODATA}/DispensingRecords?$filter=reqItem_ID eq ${item.ID}&$expand=container($select=ContainerID,MfgLotNo)`);
-    const dd = await dr.json();
-    const disps = dd.value || [];
-    document.getElementById('dp-dispensing').innerHTML = disps.length
-      ? disps.map(d => `<tr>
-          <td>${d.container?.ContainerID || d.container_ContainerID || ''}</td>
+  // Dispensing Details — look up from cached data
+  const contMap = {};
+  for (const c of containersAll) contMap[c.ContainerID] = c;
+  const disps = dispensingAll.filter(d => d.reqItem_ID === item.ID);
+  document.getElementById('dp-dispensing').innerHTML = disps.length
+    ? disps.map(d => {
+        const cont = contMap[d.container_ContainerID] || {};
+        return `<tr>
+          <td>${d.container_ContainerID || ''}</td>
           <td>${d.ChildContainerID || ''}</td>
-          <td>${d.container?.MfgLotNo || ''}</td>
+          <td>${cont.MfgLotNo || ''}</td>
           <td>${d.DispensingDate || ''}</td>
           <td>${d.QtyIssued || 0}</td>
           <td>${d.DispensedBy || ''}</td>
           <td>${d.UoM || 'KG'}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="7" class="table-empty">No dispensing records</td></tr>';
-  } catch(e) {
-    document.getElementById('dp-dispensing').innerHTML = '<tr><td colspan="7" class="table-empty">–</td></tr>';
-  }
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="7" class="table-empty">No dispensing records</td></tr>';
 
   document.getElementById('detail-panel').classList.add('open');
 }
