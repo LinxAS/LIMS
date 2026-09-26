@@ -220,35 +220,59 @@ async function saveRequisition(status) {
   const today = now.toISOString().slice(0, 10);
   const reqID = `REQ-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const body = {
-    RequisitionID   : reqID,
-    RequisitionName : reqName,
-    RequestedFor    : reqFor,
-    NeededBy        : neededBy || null,
-    plant_PlantCode : plant,
-    lab_LabCode     : lab,
-    Category        : category,
-    Status          : status,
-    CreatedBy       : 'JJOSEPH',
-    CreatedOn       : today,
-    items           : items
-  };
-
-  try {
-    const r = await fetch(`${ODATA}/Requisitions`, {
+  async function postJSON(url, payload) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
     });
-    if (r.ok) {
-      showToast(`Requisition ${reqID} saved as ${status}`, 'success');
-      setTimeout(() => { window.location.href = '../../manage-requisitions/webapp/index.html'; }, 1800);
-    } else {
-      const err = await r.json();
-      showToast(err?.error?.message || 'Error saving requisition', 'error');
+    clearTimeout(timer);
+    return r;
+  }
+
+  try {
+    // Step 1: create the requisition header (no deep insert)
+    const headerBody = {
+      RequisitionID   : reqID,
+      RequisitionName : reqName,
+      RequestedFor    : reqFor,
+      NeededBy        : neededBy || null,
+      plant_PlantCode : plant,
+      lab_LabCode     : lab,
+      Category        : category,
+      Status          : status,
+      CreatedBy       : 'JJOSEPH',
+      CreatedOn       : today
+    };
+    const hr = await postJSON(`${ODATA}/Requisitions`, headerBody);
+    if (!hr.ok) {
+      const txt = await hr.text();
+      let msg = 'Error saving requisition';
+      try { msg = JSON.parse(txt)?.error?.message || msg; } catch(_) { msg = txt.slice(0,120) || msg; }
+      showToast(`HTTP ${hr.status}: ${msg}`, 'error'); return;
     }
+
+    // Step 2: create each item separately
+    for (const item of items) {
+      const ir = await postJSON(`${ODATA}/RequisitionItems`, {
+        ...item,
+        requisition_RequisitionID: reqID
+      });
+      if (!ir.ok) {
+        const txt = await ir.text();
+        let msg = 'Error saving item';
+        try { msg = JSON.parse(txt)?.error?.message || msg; } catch(_) { msg = txt.slice(0,80) || msg; }
+        showToast(`Item error: ${msg}`, 'error'); return;
+      }
+    }
+
+    showToast(`Requisition ${reqID} saved as ${status}`, 'success');
+    setTimeout(() => { window.location.href = '../../manage-requisitions/webapp/index.html'; }, 1800);
   } catch(e) {
-    showToast('Network error', 'error');
+    showToast(e.name === 'AbortError' ? 'Request timed out — server too slow' : `Network error: ${e.message}`, 'error');
   }
 }
 
