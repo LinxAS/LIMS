@@ -167,7 +167,7 @@
 
 <!-- Create Parent Container Modal -->
 <div class="modal-overlay" id="create-modal">
-  <div class="modal" style="width:600px">
+  <div class="modal" style="width:min(92vw,820px)">
     <div class="modal-head">
       <h3>Create Parent Container</h3>
       <button class="modal-close" onclick="closeCreateModal()">✕</button>
@@ -213,27 +213,27 @@
         <div class="field">
           <label>Net Quantity *</label>
           <div style="display:flex;gap:6px">
-            <input id="m-qty" type="number" min="0.001" step="0.001" placeholder="0"/>
+            <input id="m-qty" type="number" min="0.001" step="0.001" placeholder="0" style="min-width:0;flex:1"/>
             <span style="padding:7px 8px;background:#f5f5f5;border:1px solid #bdbdbd;border-radius:4px;font-size:13px;white-space:nowrap">KG</span>
           </div>
         </div>
         <div class="field">
           <label>Tare</label>
           <div style="display:flex;gap:6px">
-            <input id="m-tare" type="number" min="0" step="0.001" placeholder="0"/>
+            <input id="m-tare" type="number" min="0" step="0.001" placeholder="0" style="min-width:0;flex:1"/>
             <span style="padding:7px 8px;background:#f5f5f5;border:1px solid #bdbdbd;border-radius:4px;font-size:13px;white-space:nowrap">KG</span>
           </div>
         </div>
         <div class="field">
-          <label>H *</label><input id="m-h" placeholder="H-code"/>
+          <label>Safety H *</label><input id="m-h" placeholder="H-code"/>
         </div>
         <div class="field">
-          <label>S *</label><input id="m-s" placeholder="S-code"/>
+          <label>Safety S *</label><input id="m-s" placeholder="S-code"/>
         </div>
       </div>
       <div class="form-grid">
         <div class="field">
-          <label>R *</label><input id="m-r" placeholder="R-code"/>
+          <label>Safety R *</label><input id="m-r" placeholder="R-code"/>
         </div>
         <div class="field" style="grid-column:span 2">
           <label>GHS Hazard Classification</label><input id="m-ghs" placeholder="e.g. Irritant"/>
