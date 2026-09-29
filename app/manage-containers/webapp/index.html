@@ -257,7 +257,7 @@
 
 <!-- Dispense Modal -->
 <div class="modal-overlay" id="dispense-modal">
-  <div class="modal" style="width:680px">
+  <div class="modal" style="width:min(92vw,1100px)">
     <div class="modal-head">
       <h3>Dispense Child</h3>
       <button class="modal-close" onclick="closeDispenseModal()">✕</button>
@@ -267,29 +267,40 @@
         <div class="field"><label>Plant</label><input id="d-plant" readonly class="auto-fill" value="NAIS"/></div>
         <div class="field"><label>Laboratory</label><input id="d-lab" readonly class="auto-fill" value="BODY DEVELOPMENT"/></div>
       </div>
-      <div class="table-wrapper" style="margin-top:12px">
-        <table class="mini-table">
+      <div style="margin-top:12px;overflow-x:hidden">
+        <table class="mini-table" style="width:100%;table-layout:fixed">
+          <colgroup>
+            <col style="width:40px"/>
+            <col style="width:11%"/>
+            <col style="width:13%"/>
+            <col style="width:18%"/>
+            <col style="width:12%"/>
+            <col style="width:10%"/>
+            <col style="width:10%"/>
+            <col style="width:13%"/>
+            <col style="width:7%"/>
+          </colgroup>
           <thead><tr>
-            <th style="width:36px"><input type="checkbox"/></th>
+            <th><input type="checkbox"/></th>
             <th>Container</th>
             <th>Spec Number</th>
             <th>Spec Description</th>
             <th>Parent Container</th>
-            <th>Requested Qty</th>
-            <th>Available Qty</th>
+            <th class="text-right">Requested Qty</th>
+            <th class="text-right">Available Qty</th>
             <th>Dispensed Qty *</th>
             <th>UoM</th>
           </tr></thead>
           <tbody id="d-tbody">
             <tr>
               <td><input type="checkbox"/></td>
-              <td id="d-cont-id">–</td>
-              <td id="d-spec-num">–</td>
-              <td id="d-spec-desc">–</td>
-              <td id="d-parent">–</td>
-              <td>0</td>
-              <td id="d-avail">0</td>
-              <td><input type="number" id="d-qty" min="0.001" step="0.001" value="1" style="width:80px"/></td>
+              <td id="d-cont-id" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">–</td>
+              <td id="d-spec-num" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">–</td>
+              <td id="d-spec-desc" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">–</td>
+              <td id="d-parent" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">–</td>
+              <td class="text-right">0</td>
+              <td class="text-right" id="d-avail">0</td>
+              <td><input type="number" id="d-qty" min="0.001" step="0.001" value="1" style="width:100%;box-sizing:border-box"/></td>
               <td>KG</td>
             </tr>
           </tbody>
